@@ -1,5 +1,7 @@
 // This file provides browser-safe localStorage helpers for rules, stats, and decision history.
 
+import { getDecisionScenarioKey } from "@/lib/decision-records";
+import { getDecisionScenarioType } from "@/lib/learning-events";
 import { DEFAULT_RULES, sanitizeRules } from "@/lib/rules";
 import type { DecisionRecord, GameRules, GameStats } from "@/lib/types";
 
@@ -75,7 +77,9 @@ export function loadStats(): GameStats {
         ...parsedStats.mistakesByCategory,
       },
       recentDecisions: Array.isArray(parsedStats.recentDecisions)
-        ? parsedStats.recentDecisions.slice(0, MAX_DECISIONS)
+        ? parsedStats.recentDecisions
+            .slice(0, MAX_DECISIONS)
+            .map((decision) => normalizeDecisionRecord(decision, DEFAULT_RULES))
         : [],
       weakScenarios: Array.isArray(parsedStats.weakScenarios)
         ? parsedStats.weakScenarios
@@ -154,9 +158,27 @@ function normalizeDecisionRecord(
   decision: DecisionRecord,
   fallbackRules?: GameRules,
 ): DecisionRecord {
-  return {
+  const rulesSnapshot = decision.rulesSnapshot ? sanitizeRules(decision.rulesSnapshot) : fallbackRules;
+  const normalizedMode = decision.mode ?? "play";
+  const normalizedDecision: DecisionRecord = {
     ...decision,
+    mode: normalizedMode,
+    scenarioKey: decision.scenarioKey ?? "",
+    scenarioType: decision.scenarioType ?? getDecisionScenarioType(decision.handCategory),
+    responseTimeMs: Math.max(0, decision.responseTimeMs ?? 0),
+    usedHint: decision.usedHint ?? normalizedMode === "coach",
+    attemptNumber: Math.max(1, decision.attemptNumber ?? 1),
+    isFirstExposure: decision.isFirstExposure ?? (decision.attemptNumber ?? 1) <= 1,
+    isRepeatedMistake: decision.isRepeatedMistake ?? false,
+    previousExposureCount: Math.max(0, decision.previousExposureCount ?? 0),
+    previousMistakeCount: Math.max(0, decision.previousMistakeCount ?? 0),
     isAfterSplit: decision.isAfterSplit ?? false,
-    rulesSnapshot: decision.rulesSnapshot ? sanitizeRules(decision.rulesSnapshot) : fallbackRules,
+    rulesSnapshot,
+  };
+
+  return {
+    ...normalizedDecision,
+    scenarioKey:
+      normalizedDecision.scenarioKey || getDecisionScenarioKey(normalizedDecision, normalizedDecision.rulesSnapshot),
   };
 }

@@ -33,7 +33,9 @@ export interface Hand {
 
 export type PlayerAction = "hit" | "stand" | "double" | "split";
 export type HandCategory = "hard" | "soft" | "pair";
-export type GameMode = "play" | "coach" | "drill" | "review" | "stats";
+export type GameMode = "play" | "coach" | "drill" | "exam" | "review";
+export type DecisionMode = GameMode;
+export type DecisionScenarioType = "hard-total" | "soft-total" | "pair";
 export type GamePhase =
   | "idle"
   | "dealing"
@@ -67,11 +69,21 @@ export interface ProbabilityInfo {
 export interface DecisionRecord {
   id: string;
   timestamp: number;
+  mode: DecisionMode;
+  scenarioKey: string;
+  scenarioType: DecisionScenarioType;
   playerHand: Card[];
   dealerUpcard: Card;
   playerAction: PlayerAction;
   optimalAction: PlayerAction;
   wasCorrect: boolean;
+  responseTimeMs: number;
+  usedHint: boolean;
+  attemptNumber: number;
+  isFirstExposure: boolean;
+  isRepeatedMistake: boolean;
+  previousExposureCount: number;
+  previousMistakeCount: number;
   handCategory: HandCategory;
   playerTotal: number;
   isAfterSplit?: boolean;

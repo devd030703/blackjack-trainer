@@ -2,12 +2,13 @@
 
 // This file renders rapid-fire blackjack scenarios for focused basic strategy practice.
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
 import { buildGuidedTrainingSession, type GuidedTrainingSession } from "@/lib/adaptive-training";
 import { canDouble, canSplit, getHandCategory } from "@/lib/blackjack";
+import { createLearningEvent } from "@/lib/learning-events";
 import { getOptimalAction } from "@/lib/strategy";
 import type { DecisionRecord, GameRules, Hand, PlayerAction } from "@/lib/types";
 
@@ -15,6 +16,10 @@ interface ScenarioDrillProps {
   rules: GameRules;
   decisions: DecisionRecord[];
   onDecisionRecorded: (decision: DecisionRecord) => void;
+}
+
+function getCurrentTimestamp(): number {
+  return Date.now();
 }
 
 // This function builds a human-readable label for the current hand category.
@@ -26,31 +31,6 @@ function getHandLabel(playerHand: Hand): string {
   }
 
   return `${handCategory.charAt(0).toUpperCase() + handCategory.slice(1)} ${playerHand.value}`;
-}
-
-// This function creates a DecisionRecord from a drill answer so it can feed stats and review mode.
-function createDecisionRecord(
-  playerHand: Hand,
-  dealerUpcard: DecisionRecord["dealerUpcard"],
-  playerAction: PlayerAction,
-  optimalAction: PlayerAction,
-  rules: GameRules,
-): DecisionRecord {
-  const handCategory = getHandCategory(playerHand.cards);
-
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    timestamp: Date.now(),
-    playerHand: playerHand.cards,
-    dealerUpcard,
-    playerAction,
-    optimalAction,
-    wasCorrect: playerAction === optimalAction,
-    handCategory,
-    playerTotal: playerHand.value,
-    isAfterSplit: false,
-    rulesSnapshot: rules,
-  };
 }
 
 // This function renders the scenario drill mode.
@@ -76,6 +56,7 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
   const [lastAction, setLastAction] = useState<PlayerAction | null>(null);
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
+  const scenarioPresentedAtRef = useRef(0);
   const scenario = session.scenarios[scenarioIndex] ?? null;
 
   const sessionProgress = useMemo(() => {
@@ -94,6 +75,7 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
     setLastAction(null);
     setSessionCorrect(0);
     setSessionTotal(0);
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
   }
 
   // This function moves the drill forward to the next guided scenario.
@@ -105,7 +87,17 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
 
     setScenarioIndex((currentValue) => currentValue + 1);
     setLastAction(null);
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
   }
+
+  // This effect restarts the response timer whenever the displayed drill scenario changes.
+  useEffect(() => {
+    if (!scenario) {
+      return;
+    }
+
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
+  }, [scenario]);
 
   // This function checks the user's chosen action and records the result.
   function handleAction(action: PlayerAction) {
@@ -114,13 +106,20 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
     }
 
     const advice = getOptimalAction(scenario.hand, scenario.dealerUpcard, rules);
-    const decisionRecord = createDecisionRecord(
-      scenario.hand,
-      scenario.dealerUpcard,
-      action,
-      advice.optimalAction,
+    const decisionRecord = createLearningEvent({
+      playerHand: scenario.hand.cards,
+      dealerUpcard: scenario.dealerUpcard,
+      playerAction: action,
+      optimalAction: advice.optimalAction,
+      handCategory: getHandCategory(scenario.hand.cards),
+      playerTotal: scenario.hand.value,
       rules,
-    );
+      isAfterSplit: false,
+      mode: "drill",
+      priorDecisions: decisions,
+      responseTimeMs: getCurrentTimestamp() - scenarioPresentedAtRef.current,
+      usedHint: false,
+    });
 
     setLastAction(action);
     setSessionTotal((currentValue) => currentValue + 1);
@@ -147,7 +146,8 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
           <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Guided Drill</p>
           <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">{session.title}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-            {session.description}
+            {session.description} Drill mode strips away full-hand pacing so you can stack fast, isolated reps on the
+            exact shapes that still slow you down.
           </p>
         </div>
 
@@ -201,6 +201,9 @@ function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: Scenari
           </span>
           <span className="rounded-full bg-[color:rgba(201,168,76,0.12)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--gold-light)]">
             Dealer {scenario.dealerUpcard.rank}
+          </span>
+          <span className="rounded-full bg-[color:rgba(46,204,113,0.12)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--correct-green)]">
+            High-density reps
           </span>
         </div>
 

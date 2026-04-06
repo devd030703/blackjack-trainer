@@ -20,6 +20,12 @@ export interface GuidedTrainingSession {
   scenarios: GuidedTrainingScenario[];
 }
 
+export interface BenchmarkSession {
+  title: string;
+  description: string;
+  scenarios: GuidedTrainingScenario[];
+}
+
 interface ScenarioBlueprint {
   id: string;
   handCategory: HandCategory;
@@ -51,6 +57,21 @@ const COVERAGE_BLUEPRINTS: ScenarioBlueprint[] = [
   { id: "coverage-pair-4-vs-5", handCategory: "pair", pairRank: "4", dealerRank: "5", source: "coverage", note: "Useful for rule-aware pair practice.", weight: 1 },
 ];
 
+const BENCHMARK_BLUEPRINTS: ScenarioBlueprint[] = [
+  { id: "benchmark-hard-16-vs-10", handCategory: "hard", playerTotal: 16, dealerRank: "10", source: "coverage", note: "Pressure hard total against a strong dealer card.", weight: 1 },
+  { id: "benchmark-hard-12-vs-4", handCategory: "hard", playerTotal: 12, dealerRank: "4", source: "coverage", note: "Dealer bust texture versus a fragile standing total.", weight: 1 },
+  { id: "benchmark-hard-11-vs-a", handCategory: "hard", playerTotal: 11, dealerRank: "A", source: "coverage", note: "A high-value double spot with real pressure.", weight: 1 },
+  { id: "benchmark-hard-9-vs-3", handCategory: "hard", playerTotal: 9, dealerRank: "3", source: "coverage", note: "Tests whether you recognize an aggressive double.", weight: 1 },
+  { id: "benchmark-soft-18-vs-9", handCategory: "soft", playerTotal: 18, dealerRank: "9", source: "coverage", note: "Classic soft-hand leak under pressure.", weight: 1 },
+  { id: "benchmark-soft-17-vs-6", handCategory: "soft", playerTotal: 17, dealerRank: "6", source: "coverage", note: "Measures soft double recognition.", weight: 1 },
+  { id: "benchmark-soft-19-vs-6", handCategory: "soft", playerTotal: 19, dealerRank: "6", source: "coverage", note: "Rule-aware soft total judgment.", weight: 1 },
+  { id: "benchmark-soft-13-vs-5", handCategory: "soft", playerTotal: 13, dealerRank: "5", source: "coverage", note: "Small-edge double that exposes uncertainty.", weight: 1 },
+  { id: "benchmark-pair-8-vs-10", handCategory: "pair", pairRank: "8", dealerRank: "10", source: "coverage", note: "The split that strong players stop hesitating on.", weight: 1 },
+  { id: "benchmark-pair-9-vs-7", handCategory: "pair", pairRank: "9", dealerRank: "7", source: "coverage", note: "Borderline split discipline under time pressure.", weight: 1 },
+  { id: "benchmark-pair-6-vs-2", handCategory: "pair", pairRank: "6", dealerRank: "2", source: "coverage", note: "Tests pair pattern recall.", weight: 1 },
+  { id: "benchmark-pair-4-vs-5", handCategory: "pair", pairRank: "4", dealerRank: "5", source: "coverage", note: "Useful for spotting rule-sensitive pair decisions.", weight: 1 },
+];
+
 // This function creates a guided drill session from saved decisions and fallback curriculum.
 export function buildGuidedTrainingSession(
   decisions: DecisionRecord[],
@@ -70,6 +91,46 @@ export function buildGuidedTrainingSession(
     title: "Guided Session",
     description: "A focused drill built from unresolved mistakes, repeated leaks, and a small amount of coverage to keep your pattern recognition broad.",
     scenarios: adaptiveBlueprints.map(buildScenarioFromBlueprint),
+  };
+}
+
+// This function builds a clean benchmark exam with balanced coverage and a small amount of personalization.
+export function buildBenchmarkSession(decisions: DecisionRecord[], rules: GameRules): BenchmarkSession {
+  const weakSpotBlueprints = getAdaptiveBlueprints(decisions, rules).slice(0, 3);
+  const selectedBlueprints: ScenarioBlueprint[] = [];
+  const selectedIds = new Set<string>();
+
+  for (const blueprint of weakSpotBlueprints) {
+    if (selectedIds.has(blueprint.id)) {
+      continue;
+    }
+
+    selectedBlueprints.push({
+      ...blueprint,
+      note: "Recent weakness promoted into benchmark rotation.",
+      source: blueprint.source === "review" ? "weak-spot" : blueprint.source,
+      weight: 2,
+    });
+    selectedIds.add(blueprint.id);
+  }
+
+  for (const blueprint of BENCHMARK_BLUEPRINTS) {
+    if (selectedIds.has(blueprint.id)) {
+      continue;
+    }
+
+    selectedBlueprints.push(blueprint);
+    selectedIds.add(blueprint.id);
+
+    if (selectedBlueprints.length >= 12) {
+      break;
+    }
+  }
+
+  return {
+    title: "Benchmark Exam",
+    description: "A timed 12-spot assessment spanning hard totals, soft totals, pairs, and a few of your current weak spots.",
+    scenarios: selectedBlueprints.slice(0, 12).map(buildScenarioFromBlueprint),
   };
 }
 

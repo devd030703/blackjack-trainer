@@ -2,7 +2,7 @@
 
 // This file lets the user revisit and replay only the decisions they previously missed.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
@@ -12,6 +12,7 @@ import {
   getDecisionScenarioLabel,
   getOutstandingReviewDecisions,
 } from "@/lib/decision-records";
+import { createLearningEvent } from "@/lib/learning-events";
 import { getOptimalAction } from "@/lib/strategy";
 import type { DecisionRecord, GameRules, HandCategory, PlayerAction } from "@/lib/types";
 
@@ -19,6 +20,10 @@ interface MistakeReviewProps {
   decisions: DecisionRecord[];
   rules: GameRules;
   onDecisionRecorded: (decision: DecisionRecord) => void;
+}
+
+function getCurrentTimestamp(): number {
+  return Date.now();
 }
 
 // This function renders the grouped mistake review mode.
@@ -32,6 +37,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
   const [activeIndex, setActiveIndex] = useState(0);
   const [reviewAction, setReviewAction] = useState<PlayerAction | null>(null);
   const [reviewedScenario, setReviewedScenario] = useState<DecisionRecord | null>(null);
+  const scenarioPresentedAtRef = useRef(0);
 
   const groupedMistakes = useMemo(
     () => ({
@@ -48,12 +54,22 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
   const activeScenario = activeGroup[boundedActiveIndex] ?? null;
   const displayedScenario = reviewedScenario ?? activeScenario;
 
+  // This effect restarts the response timer whenever the active review scenario changes.
+  useEffect(() => {
+    if (!displayedScenario) {
+      return;
+    }
+
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
+  }, [displayedScenario]);
+
   // This function changes the active mistake category and resets replay state.
   function selectCategory(category: HandCategory) {
     setActiveCategory(category);
     setActiveIndex(0);
     setReviewAction(null);
     setReviewedScenario(null);
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
   }
 
   // This function moves to the next mistake inside the active group.
@@ -67,6 +83,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
     setActiveIndex((currentIndex) => (currentIndex + 1) % activeGroup.length);
     setReviewAction(null);
     setReviewedScenario(null);
+    scenarioPresentedAtRef.current = getCurrentTimestamp();
   }
 
   // This function records the user's replay answer against the selected mistake.
@@ -83,16 +100,20 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
       scenarioRules,
       activeScenario.isAfterSplit ?? false,
     );
-    const reviewDecision: DecisionRecord = {
-      ...activeScenario,
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      timestamp: Date.now(),
+    const reviewDecision = createLearningEvent({
+      playerHand: activeScenario.playerHand,
+      dealerUpcard: activeScenario.dealerUpcard,
       playerAction: action,
       optimalAction: advice.optimalAction,
-      wasCorrect: action === advice.optimalAction,
+      handCategory: activeScenario.handCategory,
+      playerTotal: reviewHand.value,
+      rules: scenarioRules,
       isAfterSplit: activeScenario.isAfterSplit ?? false,
-      rulesSnapshot: scenarioRules,
-    };
+      mode: "review",
+      priorDecisions: decisions,
+      responseTimeMs: getCurrentTimestamp() - scenarioPresentedAtRef.current,
+      usedHint: false,
+    });
 
     setReviewAction(action);
     setReviewedScenario(activeScenario);
@@ -105,7 +126,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Mistake Review</p>
         <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">No mistakes saved yet</h2>
         <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-          Once you miss a decision in play, coach, or drill mode, it will appear here for targeted review.
+          Once you miss a decision in play, coach, drill, or exam mode, it will appear here for targeted review.
         </p>
       </section>
     );
@@ -130,6 +151,10 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
       <div className="panel-shell">
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Mistake Review</p>
         <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">Target your weak spots</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+          Review mode is for recovery. Retry the mistake cleanly, then inspect the explanation so the error stops
+          repeating the next time the spot shows up under pressure.
+        </p>
         <div className="mt-6 flex flex-wrap gap-3">
           {(["hard", "soft", "pair"] as HandCategory[]).map((category) => (
             <button

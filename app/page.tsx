@@ -4,12 +4,14 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BlackjackTable } from "@/components/BlackjackTable";
+import { ExamSession } from "@/components/ExamSession";
 import { MistakeReview } from "@/components/MistakeReview";
 import { ModeSelector } from "@/components/ModeSelector";
 import { RulesSettings } from "@/components/RulesSettings";
 import { ScenarioDrill } from "@/components/ScenarioDrill";
 import { StatsDashboard } from "@/components/StatsDashboard";
-import { getOutstandingReviewDecisions } from "@/lib/decision-records";
+import { getDecisionScenarioKey, getOutstandingReviewDecisions } from "@/lib/decision-records";
+import { MODE_DEFINITION_BY_ID, MODE_DEFINITIONS } from "@/lib/modes";
 import { DEFAULT_RULES } from "@/lib/rules";
 import {
   clearAll,
@@ -25,7 +27,7 @@ import type { DecisionRecord, GameMode, GameRules, GameStats } from "@/lib/types
 
 // This function creates a scenario key used to track which spots the user misses most often.
 function getScenarioKey(decision: DecisionRecord): string {
-  return `${decision.handCategory}-${decision.playerTotal}-${decision.dealerUpcard.rank}`;
+  return decision.scenarioKey || getDecisionScenarioKey(decision, decision.rulesSnapshot);
 }
 
 // This function calculates the top weak scenarios from recent decision history.
@@ -125,6 +127,7 @@ function HydratedHome() {
     stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
 
   const pendingReviewCount = useMemo(() => getOutstandingReviewDecisions(decisions, rules).length, [decisions, rules]);
+  const activeModeDefinition = MODE_DEFINITION_BY_ID[activeMode];
 
   // This function stores one decision, updates history, and updates aggregate stats.
   function handleDecisionRecorded(decision: DecisionRecord) {
@@ -173,8 +176,8 @@ function HydratedHome() {
                   Train the decision, not just the hand.
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-secondary)] sm:mt-4 sm:text-base">
-                  Built for repetition, coaching, and post-hand review. Practice basic strategy, pressure-test tough
-                  spots, and let the app build guided drills around the mistakes you are still making.
+                  Build a habit loop that actually makes sense: warm up in Drill, learn in Coach, benchmark in Exam,
+                  play naturally in Play, then use Review to clean up the spots you still miss.
                 </p>
               </div>
 
@@ -194,7 +197,14 @@ function HydratedHome() {
                 onClick={() => setActiveMode("drill")}
                 className="rounded-full border border-[color:rgba(255,255,255,0.1)] px-5 py-3 text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
               >
-                Start guided drill
+                Warm up in Drill
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode("exam")}
+                className="rounded-full border border-[color:rgba(255,255,255,0.1)] px-5 py-3 text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+              >
+                Run timed Exam
               </button>
             </div>
           </div>
@@ -203,10 +213,46 @@ function HydratedHome() {
         <div className="space-y-8">
           <ModeSelector activeMode={activeMode} onChange={setActiveMode} />
 
+          <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="panel-shell">
+              <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">{activeModeDefinition.eyebrow}</p>
+              <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">{activeModeDefinition.title}</h2>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+                {activeModeDefinition.description}
+              </p>
+            </div>
+
+            <div className="panel-shell grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+              <ModeIntent label="What it is for" value={activeModeDefinition.purpose} />
+              <ModeIntent label="Best use case" value={activeModeDefinition.cadence} />
+              <ModeIntent label="Assistance level" value={activeModeDefinition.assistance} />
+            </div>
+          </section>
+
+          <section className="grid gap-3 md:grid-cols-5">
+            {MODE_DEFINITIONS.map((modeDefinition, index) => {
+              const isActive = modeDefinition.mode === activeMode;
+
+              return (
+                <button
+                  key={modeDefinition.mode}
+                  type="button"
+                  onClick={() => setActiveMode(modeDefinition.mode)}
+                  className={`rounded-[1.5rem] border px-4 py-4 text-left transition ${isActive ? "border-[color:rgba(232,199,106,0.34)] bg-[linear-gradient(135deg,rgba(201,168,76,0.12),rgba(26,74,46,0.78))]" : "border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] hover:border-[color:rgba(232,199,106,0.2)]"}`}
+                >
+                  <p className="text-[0.65rem] uppercase tracking-[0.25em] text-[var(--text-secondary)]">Step {index + 1}</p>
+                  <p className="mt-2 font-display text-2xl text-[var(--text-primary)]">{modeDefinition.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{modeDefinition.eyebrow}</p>
+                </button>
+              );
+            })}
+          </section>
+
           {activeMode === "play" ? (
             <BlackjackTable
               mode="play"
               rules={rules}
+              decisions={decisions}
               onDecisionRecorded={handleDecisionRecorded}
               onHandCompleted={handleHandCompleted}
             />
@@ -216,6 +262,7 @@ function HydratedHome() {
             <BlackjackTable
               mode="coach"
               rules={rules}
+              decisions={decisions}
               onDecisionRecorded={handleDecisionRecorded}
               onHandCompleted={handleHandCompleted}
             />
@@ -230,6 +277,10 @@ function HydratedHome() {
             />
           ) : null}
 
+          {activeMode === "exam" ? (
+            <ExamSession key={JSON.stringify(rules)} rules={rules} decisions={decisions} onDecisionRecorded={handleDecisionRecorded} />
+          ) : null}
+
           {activeMode === "review" ? (
             <MistakeReview
               decisions={decisions}
@@ -238,9 +289,18 @@ function HydratedHome() {
             />
           ) : null}
 
-          {activeMode === "stats" ? (
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Performance ledger</p>
+                <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">Track progress outside the mode rail</h2>
+              </div>
+              <p className="max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+                Stats remain important, but they support the learning loop instead of taking the place of a practice mode.
+              </p>
+            </div>
             <StatsDashboard stats={stats} decisions={decisions} onReset={handleResetAll} />
-          ) : null}
+          </section>
         </div>
       </div>
 
@@ -280,6 +340,20 @@ function HeroMetric({ label, value }: HeroMetricProps) {
     <div className="rounded-[1.5rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-3 sm:rounded-[1.75rem] sm:p-5">
       <p className="text-[0.6rem] uppercase tracking-[0.2em] text-[var(--text-secondary)] sm:text-xs sm:tracking-[0.25em]">{label}</p>
       <p className="mt-1 font-display text-2xl text-[var(--text-primary)] sm:mt-3 sm:text-4xl">{value}</p>
+    </div>
+  );
+}
+
+interface ModeIntentProps {
+  label: string;
+  value: string;
+}
+
+function ModeIntent({ label, value }: ModeIntentProps) {
+  return (
+    <div className="rounded-[1.5rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-4">
+      <p className="text-xs uppercase tracking-[0.22em] text-[var(--text-secondary)]">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--text-primary)]">{value}</p>
     </div>
   );
 }

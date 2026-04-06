@@ -7,6 +7,7 @@ import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
 import { ProbabilityPanel } from "@/components/ProbabilityPanel";
+import { createLearningEvent } from "@/lib/learning-events";
 import {
   canDouble,
   canSplit,
@@ -38,6 +39,7 @@ import type {
 interface BlackjackTableProps {
   mode: "play" | "coach";
   rules: GameRules;
+  decisions: DecisionRecord[];
   onDecisionRecorded: (decision: DecisionRecord) => void;
   onHandCompleted: () => void;
 }
@@ -55,10 +57,21 @@ interface CoachFeedbackState {
   handLabel: string;
 }
 
+interface RoundReviewEntry {
+  advice: StrategyAdvice;
+  playerAction: PlayerAction;
+  wasCorrect: boolean;
+  handLabel: string;
+}
+
 interface HandOutcome {
   title: string;
   detail: string;
   tone: "win" | "loss" | "push" | "blackjack";
+}
+
+function getCurrentTimestamp(): number {
+  return Date.now();
 }
 
 // This function takes one card from the shoe and reshuffles automatically when the shoe is empty.
@@ -172,30 +185,6 @@ function buildProbabilityInfo(
   };
 }
 
-// This function creates the DecisionRecord stored for stats and review mode.
-function createDecisionRecord(
-  playerHand: Hand,
-  dealerUpcard: PlayingCard,
-  playerAction: PlayerAction,
-  advice: StrategyAdvice,
-  rules: GameRules,
-  isAfterSplit: boolean,
-): DecisionRecord {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    timestamp: Date.now(),
-    playerHand: playerHand.cards,
-    dealerUpcard,
-    playerAction,
-    optimalAction: advice.optimalAction,
-    wasCorrect: playerAction === advice.optimalAction,
-    handCategory: advice.handCategory,
-    playerTotal: playerHand.value,
-    isAfterSplit,
-    rulesSnapshot: rules,
-  };
-}
-
 // This function finds the next unfinished player hand after the current split hand.
 function getNextPlayableIndex(playerSpots: PlayerSpot[], currentIndex: number): number {
   for (let nextIndex = currentIndex + 1; nextIndex < playerSpots.length; nextIndex += 1) {
@@ -211,6 +200,7 @@ function getNextPlayableIndex(playerSpots: PlayerSpot[], currentIndex: number): 
 export function BlackjackTable({
   mode,
   rules,
+  decisions,
   onDecisionRecorded,
   onHandCompleted,
 }: BlackjackTableProps) {
@@ -220,11 +210,13 @@ export function BlackjackTable({
   const [playerSpots, setPlayerSpots] = useState<PlayerSpot[]>([]);
   const [activeSpotIndex, setActiveSpotIndex] = useState(0);
   const [coachFeedback, setCoachFeedback] = useState<CoachFeedbackState | null>(null);
+  const [roundReviewEntries, setRoundReviewEntries] = useState<RoundReviewEntry[]>([]);
   const [flashState, setFlashState] = useState<"correct" | "incorrect" | null>(null);
   const [roundOutcomes, setRoundOutcomes] = useState<HandOutcome[]>([]);
   const [roundCounter, setRoundCounter] = useState(0);
   const [restartCounter, setRestartCounter] = useState(0);
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const decisionStartedAtRef = useRef(0);
 
   const activeSpot = playerSpots[activeSpotIndex] ?? null;
   const activeHand = activeSpot ? getSpotHand(activeSpot) : null;
@@ -246,6 +238,20 @@ export function BlackjackTable({
     return buildProbabilityInfo(activeHand, dealerUpcard, currentAdvice);
   }, [activeHand, dealerUpcard, currentAdvice]);
 
+  const decisionSignature = useMemo(() => {
+    if (phase !== "playerTurn" || !activeSpot || !dealerUpcard) {
+      return null;
+    }
+
+    return [
+      activeSpotIndex,
+      activeSpot.isAfterSplit ? "split" : "initial",
+      dealerUpcard.rank,
+      dealerUpcard.suit,
+      ...activeSpot.cards.map((card) => `${card.rank}-${card.suit}`),
+    ].join(":");
+  }, [activeSpot, activeSpotIndex, dealerUpcard, phase]);
+
   // This effect clears any outstanding timeouts if the component unmounts.
   useEffect(() => {
     return () => {
@@ -254,6 +260,15 @@ export function BlackjackTable({
       }
     };
   }, []);
+
+  // This effect restarts the response timer whenever a new decision spot becomes active.
+  useEffect(() => {
+    if (!decisionSignature) {
+      return;
+    }
+
+    decisionStartedAtRef.current = getCurrentTimestamp();
+  }, [decisionSignature]);
 
   // This effect starts a fresh hand when the table first appears, when rules change, or when the user requests one.
   useEffect(() => {
@@ -277,6 +292,7 @@ export function BlackjackTable({
     timersRef.current = [];
     setPhase("dealing");
     setCoachFeedback(null);
+    setRoundReviewEntries([]);
     setFlashState(null);
     setRoundOutcomes([]);
     setActiveSpotIndex(0);
@@ -318,12 +334,30 @@ export function BlackjackTable({
     setRestartCounter((currentValue) => currentValue + 1);
   }
 
-  // This function records the coach feedback state after a player decision.
-  function showDecisionFeedback(advice: StrategyAdvice, wasCorrect: boolean, cards: PlayingCard[]) {
+  // This function captures one completed decision for coach feedback or post-hand review.
+  function captureDecisionFeedback(
+    advice: StrategyAdvice,
+    playerAction: PlayerAction,
+    wasCorrect: boolean,
+    cards: PlayingCard[],
+  ) {
+    const nextEntry: RoundReviewEntry = {
+      advice,
+      playerAction,
+      wasCorrect,
+      handLabel: getHandLabel(cards),
+    };
+
+    setRoundReviewEntries((currentEntries) => [...currentEntries, nextEntry]);
+
+    if (mode !== "coach") {
+      return;
+    }
+
     setCoachFeedback({
       advice,
       wasCorrect,
-      handLabel: getHandLabel(cards),
+      handLabel: nextEntry.handLabel,
     });
 
     setFlashState(wasCorrect ? "correct" : "incorrect");
@@ -392,18 +426,24 @@ export function BlackjackTable({
       return;
     }
 
-    const decisionRecord = createDecisionRecord(
-      activeHand,
+    const decisionRecord = createLearningEvent({
+      playerHand: activeHand.cards,
       dealerUpcard,
-      action,
-      currentAdvice,
+      playerAction: action,
+      optimalAction: currentAdvice.optimalAction,
+      handCategory: currentAdvice.handCategory,
+      playerTotal: activeHand.value,
       rules,
-      activeSpot.isAfterSplit,
-    );
+      isAfterSplit: activeSpot.isAfterSplit,
+      mode,
+      priorDecisions: decisions,
+      responseTimeMs: getCurrentTimestamp() - decisionStartedAtRef.current,
+      usedHint: mode === "coach",
+    });
     const nextPlayerSpots = [...playerSpots];
     const currentSpotCopy = { ...nextPlayerSpots[activeSpotIndex] };
 
-    showDecisionFeedback(currentAdvice, decisionRecord.wasCorrect, currentSpotCopy.cards);
+    captureDecisionFeedback(currentAdvice, action, decisionRecord.wasCorrect, currentSpotCopy.cards);
     onDecisionRecorded(decisionRecord);
 
     if (action === "stand") {
@@ -483,7 +523,14 @@ export function BlackjackTable({
             Coach mode: recommended moves are highlighted before you act.
           </p>
         </div>
-      ) : null}
+      ) : (
+        <div className="panel-shell border-[color:rgba(255,255,255,0.1)] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(9,18,13,0.95))]">
+          <p className="text-sm text-[var(--text-secondary)]">
+            Play mode keeps the table quiet. You get the full hand first, then a clean review of every decision once
+            the round settles.
+          </p>
+        </div>
+      )}
 
       <div className="table-surface relative overflow-hidden rounded-[2.5rem] border border-[color:rgba(232,199,106,0.2)] p-5 sm:p-8">
         <div className="absolute inset-x-8 top-8 h-px bg-[linear-gradient(90deg,transparent,rgba(232,199,106,0.35),transparent)]" />
@@ -586,6 +633,34 @@ export function BlackjackTable({
                   </div>
                 ))}
               </div>
+              {mode === "play" && roundReviewEntries.length > 0 ? (
+                <div className="mt-5 border-t border-[color:rgba(255,255,255,0.08)] pt-5 sm:mt-6 sm:pt-6">
+                  <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">Post-hand review</p>
+                  <div className="mt-3 space-y-3">
+                    {roundReviewEntries.map((entry, index) => (
+                      <div
+                        key={`${entry.handLabel}-${entry.playerAction}-${index}`}
+                        className="rounded-[1.35rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-3 text-left"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm text-[var(--text-primary)]">{entry.handLabel}</p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                              You chose {entry.playerAction}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs ${entry.wasCorrect ? "bg-[color:rgba(46,204,113,0.12)] text-[var(--correct-green)]" : "bg-[color:rgba(231,76,60,0.12)] text-[var(--incorrect-red)]"}`}
+                          >
+                            {entry.wasCorrect ? "Correct" : `Best move: ${entry.advice.optimalAction}`}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{entry.advice.explanation}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <button type="button" onClick={handleNextHand} className="luxury-button mt-5 w-full px-5 py-3 sm:mt-6 sm:w-auto">
                 Next hand
               </button>
@@ -601,25 +676,42 @@ export function BlackjackTable({
             canDouble={activeSpot ? canDouble(activeSpot.cards, rules, activeSpot.isAfterSplit) : false}
             canSplit={activeSpot ? canSplit(activeSpot.cards, rules, playerSpots.length - 1) : false}
             recommendedAction={mode === "coach" ? currentAdvice?.optimalAction ?? null : null}
-            feedbackState={flashState}
+            feedbackState={mode === "coach" ? flashState : null}
             disabled={phase !== "playerTurn"}
           />
-          <CoachPanel
-            advice={coachFeedback?.advice ?? null}
-            wasCorrect={coachFeedback?.wasCorrect ?? null}
-            handLabel={coachFeedback?.handLabel ?? ""}
-          />
+          {mode === "coach" ? (
+            <CoachPanel
+              advice={coachFeedback?.advice ?? null}
+              wasCorrect={coachFeedback?.wasCorrect ?? null}
+              handLabel={coachFeedback?.handLabel ?? ""}
+            />
+          ) : (
+            <div className="panel-shell min-h-44">
+              <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Review</p>
+              <h3 className="mt-2 font-display text-xl text-[var(--text-primary)]">Feedback waits until the hand ends</h3>
+              <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
+                Play mode keeps the felt clean. Finish the round and the result overlay will show which choices held up
+                and which ones need work.
+              </p>
+            </div>
+          )}
         </div>
 
         <div>
-          {probabilityInfo && phase === "playerTurn" ? (
+          {mode === "coach" && probabilityInfo && phase === "playerTurn" ? (
             <ProbabilityPanel probabilityInfo={probabilityInfo} />
           ) : (
             <div className="panel-shell">
-              <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Probability</p>
-              <h3 className="mt-2 font-display text-xl text-[var(--text-primary)]">Waiting for the next decision</h3>
+              <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">
+                {mode === "coach" ? "Probability" : "Table feel"}
+              </p>
+              <h3 className="mt-2 font-display text-xl text-[var(--text-primary)]">
+                {mode === "coach" ? "Waiting for the next decision" : "No live percentages in play mode"}
+              </h3>
               <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-                The probability panel becomes active during your turn and updates as each hand changes.
+                {mode === "coach"
+                  ? "The probability panel becomes active during your turn and updates as each hand changes."
+                  : "The table stays closer to real play here. If you want recommendation strength, bust odds, and live context, switch to Coach."}
               </p>
             </div>
           )}

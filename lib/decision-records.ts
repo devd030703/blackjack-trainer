@@ -33,6 +33,10 @@ export function getDecisionScenarioKey(
   decision: DecisionRecord,
   fallbackRules?: GameRules,
 ): string {
+  if (decision.scenarioKey) {
+    return decision.scenarioKey;
+  }
+
   const dealerKey = getRankBucket(decision.dealerUpcard.rank);
   const scenarioValue =
     decision.handCategory === "pair" && decision.playerHand[0]

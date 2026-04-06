@@ -1,5 +1,6 @@
 // This file renders persistent performance stats, weak spots, and a recent accuracy timeline.
 
+import { getDecisionScenarioLabel } from "@/lib/decision-records";
 import type { DecisionRecord, GameStats } from "@/lib/types";
 
 interface StatsDashboardProps {
@@ -17,7 +18,7 @@ function getTopMistakes(decisions: DecisionRecord[]): Array<{ key: string; misse
       continue;
     }
 
-    const scenarioKey = `${decision.handCategory} ${decision.playerTotal} vs ${decision.dealerUpcard.rank}`;
+    const scenarioKey = getDecisionScenarioLabel(decision);
     const existingCount = mistakeCounts.get(scenarioKey) ?? 0;
     mistakeCounts.set(scenarioKey, existingCount + 1);
   }
@@ -34,6 +35,12 @@ export function StatsDashboard({ stats, decisions, onReset }: StatsDashboardProp
     stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
   const recentTimeline = decisions.slice(0, 20);
   const topMistakes = getTopMistakes(decisions);
+  const averageResponseSeconds =
+    decisions.length === 0
+      ? 0
+      : decisions.reduce((totalValue, decision) => totalValue + decision.responseTimeMs, 0) / decisions.length / 1000;
+  const hintAssistedDecisions = decisions.filter((decision) => decision.usedHint).length;
+  const repeatedMistakes = decisions.filter((decision) => decision.isRepeatedMistake).length;
 
   return (
     <section className="space-y-6">
@@ -42,6 +49,12 @@ export function StatsDashboard({ stats, decisions, onReset }: StatsDashboardProp
         <MetricCard label="Total decisions" value={String(stats.totalDecisions)} />
         <MetricCard label="Correct rate" value={`${accuracyPercentage}%`} />
         <MetricCard label="Tracked mistakes" value={String(stats.totalDecisions - stats.correctDecisions)} />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <MetricCard label="Avg response" value={`${averageResponseSeconds.toFixed(1)}s`} />
+        <MetricCard label="Hint-assisted" value={String(hintAssistedDecisions)} />
+        <MetricCard label="Repeated mistakes" value={String(repeatedMistakes)} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -79,7 +92,7 @@ export function StatsDashboard({ stats, decisions, onReset }: StatsDashboardProp
               recentTimeline.map((decision) => (
                 <div
                   key={decision.id}
-                  title={`${decision.wasCorrect ? "Correct" : "Incorrect"}: ${decision.handCategory} ${decision.playerTotal} vs ${decision.dealerUpcard.rank}`}
+                  title={`${decision.wasCorrect ? "Correct" : "Incorrect"}: ${getDecisionScenarioLabel(decision)}`}
                   className={`h-10 rounded-xl ${decision.wasCorrect ? "bg-[color:rgba(46,204,113,0.85)]" : "bg-[color:rgba(231,76,60,0.85)]"}`}
                 />
               ))
