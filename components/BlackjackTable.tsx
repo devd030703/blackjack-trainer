@@ -93,8 +93,9 @@ function evaluateHandOutcome(
   const playerHand = getSpotHand(playerSpot);
   const dealerHand = createHand(dealerCards);
   const doubleText = playerSpot.doubled ? " Double-down stake applies." : "";
+  const playerHasNaturalBlackjack = playerHand.isBlackjack && !playerSpot.isAfterSplit;
 
-  if (playerHand.isBlackjack && dealerHand.isBlackjack) {
+  if (playerHasNaturalBlackjack && dealerHand.isBlackjack) {
     return {
       title: "Push",
       detail: "Both sides have blackjack. Nobody wins this hand.",
@@ -102,7 +103,7 @@ function evaluateHandOutcome(
     };
   }
 
-  if (playerHand.isBlackjack) {
+  if (playerHasNaturalBlackjack) {
     return {
       title: "Blackjack",
       detail: `Natural blackjack pays ${rules.blackjackPayout}.${doubleText}`,
@@ -177,6 +178,8 @@ function createDecisionRecord(
   dealerUpcard: PlayingCard,
   playerAction: PlayerAction,
   advice: StrategyAdvice,
+  rules: GameRules,
+  isAfterSplit: boolean,
 ): DecisionRecord {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -188,6 +191,8 @@ function createDecisionRecord(
     wasCorrect: playerAction === advice.optimalAction,
     handCategory: advice.handCategory,
     playerTotal: playerHand.value,
+    isAfterSplit,
+    rulesSnapshot: rules,
   };
 }
 
@@ -381,7 +386,14 @@ export function BlackjackTable({
       return;
     }
 
-    const decisionRecord = createDecisionRecord(activeHand, dealerUpcard, action, currentAdvice);
+    const decisionRecord = createDecisionRecord(
+      activeHand,
+      dealerUpcard,
+      action,
+      currentAdvice,
+      rules,
+      activeSpot.isAfterSplit,
+    );
     const nextPlayerSpots = [...playerSpots];
     const currentSpotCopy = { ...nextPlayerSpots[activeSpotIndex] };
 

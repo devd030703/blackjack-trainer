@@ -141,7 +141,7 @@ function applyTableConstraints(
     return playerHand.isSoft ? "hit" : playerHand.value >= 17 ? "stand" : "hit";
   }
 
-  if (action === "split" && !isPair(playerHand.cards)) {
+  if (action === "split" && (!isPair(playerHand.cards) || (isAfterSplit && !rules.resplitAllowed))) {
     return playerHand.value >= 17 ? "stand" : "hit";
   }
 

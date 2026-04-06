@@ -95,7 +95,6 @@ Supported rule fields:
 - `blackjackPayout`: `3:2` or `6:5`
 - `doubleAfterSplit`
 - `resplitAllowed`
-- `surrenderAllowed`
 
 Default rules are currently:
 
@@ -104,9 +103,8 @@ Default rules are currently:
 - Blackjack pays 3:2
 - Double after split enabled
 - Resplitting enabled
-- Surrender disabled
 
-The strategy engine resolves recommendations against the current rules, including surrender and double fallback behavior.
+The strategy engine resolves recommendations against the current rules, including double and resplit fallback behavior.
 
 ## How Progress and Stats Are Stored
 

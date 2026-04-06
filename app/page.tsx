@@ -9,6 +9,7 @@ import { ModeSelector } from "@/components/ModeSelector";
 import { RulesSettings } from "@/components/RulesSettings";
 import { ScenarioDrill } from "@/components/ScenarioDrill";
 import { StatsDashboard } from "@/components/StatsDashboard";
+import { getOutstandingReviewDecisions } from "@/lib/decision-records";
 import { DEFAULT_RULES } from "@/lib/rules";
 import {
   clearAll,
@@ -97,10 +98,19 @@ export default function Home() {
 }
 
 function HydratedHome() {
+  const [initialData] = useState(() => {
+    const initialRules = loadRules();
+
+    return {
+      rules: initialRules,
+      stats: loadStats(),
+      decisions: loadDecisions(initialRules),
+    };
+  });
   const [activeMode, setActiveMode] = useState<GameMode>("play");
-  const [rules, setRules] = useState<GameRules>(() => loadRules());
-  const [stats, setStats] = useState<GameStats>(() => loadStats());
-  const [decisions, setDecisions] = useState<DecisionRecord[]>(() => loadDecisions());
+  const [rules, setRules] = useState<GameRules>(initialData.rules);
+  const [stats, setStats] = useState<GameStats>(initialData.stats);
+  const [decisions, setDecisions] = useState<DecisionRecord[]>(initialData.decisions);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
@@ -114,10 +124,7 @@ function HydratedHome() {
   const accuracy =
     stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
 
-  const wrongDecisionCount = useMemo(
-    () => decisions.filter((decision) => !decision.wasCorrect).length,
-    [decisions],
-  );
+  const pendingReviewCount = useMemo(() => getOutstandingReviewDecisions(decisions, rules).length, [decisions, rules]);
 
   // This function stores one decision, updates history, and updates aggregate stats.
   function handleDecisionRecorded(decision: DecisionRecord) {
@@ -174,7 +181,7 @@ function HydratedHome() {
               <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <HeroMetric label="Correct rate" value={`${accuracy}%`} />
                 <HeroMetric label="Hands played" value={String(stats.totalHands)} />
-                <HeroMetric label="Mistakes to review" value={String(wrongDecisionCount)} />
+                <HeroMetric label="Mistakes to review" value={String(pendingReviewCount)} />
               </div>
             </div>
 

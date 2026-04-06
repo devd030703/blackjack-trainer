@@ -8,7 +8,6 @@ export const DEFAULT_RULES: GameRules = {
   blackjackPayout: "3:2",
   doubleAfterSplit: true,
   resplitAllowed: true,
-  surrenderAllowed: false,
 };
 
 export const RULE_DESCRIPTIONS: Record<keyof GameRules, string> = {
@@ -22,8 +21,6 @@ export const RULE_DESCRIPTIONS: Record<keyof GameRules, string> = {
     "Double after split is better for the player and changes some pair-splitting recommendations.",
   resplitAllowed:
     "Resplitting gives you more flexibility when pairs appear again after a split, which is slightly better for the player.",
-  surrenderAllowed:
-    "Late surrender lets you give up bad hands for half your bet. It can be valuable in a few difficult spots.",
 };
 
 const ALLOWED_DECK_COUNTS = new Set([1, 2, 4, 6, 8]);
@@ -41,8 +38,7 @@ export function isValidRules(candidate: unknown): candidate is GameRules {
     typeof rules.dealerHitsSoft17 === "boolean" &&
     (rules.blackjackPayout === "3:2" || rules.blackjackPayout === "6:5") &&
     typeof rules.doubleAfterSplit === "boolean" &&
-    typeof rules.resplitAllowed === "boolean" &&
-    typeof rules.surrenderAllowed === "boolean"
+    typeof rules.resplitAllowed === "boolean"
   );
 }
 
@@ -52,6 +48,11 @@ export function sanitizeRules(candidate: unknown): GameRules {
     return DEFAULT_RULES;
   }
 
-  return candidate;
+  return {
+    numDecks: candidate.numDecks,
+    dealerHitsSoft17: candidate.dealerHitsSoft17,
+    blackjackPayout: candidate.blackjackPayout,
+    doubleAfterSplit: candidate.doubleAfterSplit,
+    resplitAllowed: candidate.resplitAllowed,
+  };
 }
-

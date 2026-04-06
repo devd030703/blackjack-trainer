@@ -64,6 +64,7 @@ function createDecisionRecord(
   dealerUpcard: PlayingCard,
   playerAction: PlayerAction,
   optimalAction: PlayerAction,
+  rules: GameRules,
 ): DecisionRecord {
   const handCategory = getHandCategory(playerHand.cards);
 
@@ -77,6 +78,8 @@ function createDecisionRecord(
     wasCorrect: playerAction === optimalAction,
     handCategory,
     playerTotal: playerHand.value,
+    isAfterSplit: false,
+    rulesSnapshot: rules,
   };
 }
 
@@ -121,6 +124,7 @@ function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps
       scenario.dealerUpcard,
       action,
       advice.optimalAction,
+      rules,
     );
 
     setLastAction(action);

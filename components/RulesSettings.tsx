@@ -118,17 +118,6 @@ export function RulesSettings({
               />
             }
           />
-
-          <RuleBlock
-            label="Surrender allowed"
-            description={RULE_DESCRIPTIONS.surrenderAllowed}
-            control={
-              <Toggle
-                checked={rules.surrenderAllowed}
-                onChange={(checked) => onChange(updateRule(rules, "surrenderAllowed", checked))}
-              />
-            }
-          />
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">

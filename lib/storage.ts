@@ -110,13 +110,13 @@ export function loadRules(): GameRules {
 
 // This function appends one decision to history and trims the list to the newest 200 records.
 export function saveDecision(decision: DecisionRecord): void {
-  const decisions = loadDecisions();
+  const decisions = loadDecisions(decision.rulesSnapshot);
   const nextDecisions = [decision, ...decisions].slice(0, MAX_DECISIONS);
   writeStorage(DECISIONS_KEY, JSON.stringify(nextDecisions));
 }
 
 // This function returns saved decision history, capped to the most recent 200 entries.
-export function loadDecisions(): DecisionRecord[] {
+export function loadDecisions(fallbackRules?: GameRules): DecisionRecord[] {
   const rawDecisions = readStorage(DECISIONS_KEY);
 
   if (!rawDecisions) {
@@ -125,7 +125,9 @@ export function loadDecisions(): DecisionRecord[] {
 
   try {
     const parsedDecisions = JSON.parse(rawDecisions) as DecisionRecord[];
-    return Array.isArray(parsedDecisions) ? parsedDecisions.slice(0, MAX_DECISIONS) : [];
+    return Array.isArray(parsedDecisions)
+      ? parsedDecisions.slice(0, MAX_DECISIONS).map((decision) => normalizeDecisionRecord(decision, fallbackRules))
+      : [];
   } catch (error) {
     console.error("Failed to parse saved decisions.", error);
     return [];
@@ -145,4 +147,16 @@ export function clearAll(): void {
   } catch (error) {
     console.error("Failed to clear trainer data.", error);
   }
+}
+
+// This function backfills newer decision fields when older localStorage payloads are loaded.
+function normalizeDecisionRecord(
+  decision: DecisionRecord,
+  fallbackRules?: GameRules,
+): DecisionRecord {
+  return {
+    ...decision,
+    isAfterSplit: decision.isAfterSplit ?? false,
+    rulesSnapshot: decision.rulesSnapshot ? sanitizeRules(decision.rulesSnapshot) : fallbackRules,
+  };
 }

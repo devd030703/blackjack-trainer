@@ -47,7 +47,6 @@ export interface GameRules {
   blackjackPayout: "3:2" | "6:5";
   doubleAfterSplit: boolean;
   resplitAllowed: boolean;
-  surrenderAllowed: boolean;
 }
 
 export interface StrategyAdvice {
@@ -75,6 +74,8 @@ export interface DecisionRecord {
   wasCorrect: boolean;
   handCategory: HandCategory;
   playerTotal: number;
+  isAfterSplit?: boolean;
+  rulesSnapshot?: GameRules;
 }
 
 export interface GameStats {
@@ -101,4 +102,3 @@ export interface GameState {
   splitHands: Hand[];
   currentSplitIndex: number;
 }
-

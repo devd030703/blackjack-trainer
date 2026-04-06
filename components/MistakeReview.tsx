@@ -7,6 +7,11 @@ import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
 import { canDouble, canSplit, createHand } from "@/lib/blackjack";
+import {
+  getDecisionRules,
+  getDecisionScenarioLabel,
+  getOutstandingReviewDecisions,
+} from "@/lib/decision-records";
 import { getOptimalAction } from "@/lib/strategy";
 import type { DecisionRecord, GameRules, HandCategory, PlayerAction } from "@/lib/types";
 
@@ -16,52 +21,52 @@ interface MistakeReviewProps {
   onDecisionRecorded: (decision: DecisionRecord) => void;
 }
 
-// This function converts a stored mistake into the display label used in the UI.
-function getScenarioLabel(decision: DecisionRecord): string {
-  if (decision.handCategory === "pair") {
-    return `Pair review: ${decision.playerHand[0].rank}s vs dealer ${decision.dealerUpcard.rank}`;
-  }
-
-  return `${decision.handCategory} ${decision.playerTotal} vs dealer ${decision.dealerUpcard.rank}`;
-}
-
 // This function renders the grouped mistake review mode.
 export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeReviewProps) {
-  const wrongDecisions = useMemo(
-    () => decisions.filter((decision) => !decision.wasCorrect),
-    [decisions],
-  );
-  const [activeCategory, setActiveCategory] = useState<HandCategory>("hard");
+  const reviewDecisions = useMemo(() => getOutstandingReviewDecisions(decisions, rules), [decisions, rules]);
+  const firstAvailableCategory =
+    (["hard", "soft", "pair"] as HandCategory[]).find((category) =>
+      reviewDecisions.some((decision) => decision.handCategory === category),
+    ) ?? "hard";
+  const [activeCategory, setActiveCategory] = useState<HandCategory>(firstAvailableCategory);
   const [activeIndex, setActiveIndex] = useState(0);
   const [reviewAction, setReviewAction] = useState<PlayerAction | null>(null);
+  const [reviewedScenario, setReviewedScenario] = useState<DecisionRecord | null>(null);
 
   const groupedMistakes = useMemo(
     () => ({
-      hard: wrongDecisions.filter((decision) => decision.handCategory === "hard"),
-      soft: wrongDecisions.filter((decision) => decision.handCategory === "soft"),
-      pair: wrongDecisions.filter((decision) => decision.handCategory === "pair"),
+      hard: reviewDecisions.filter((decision) => decision.handCategory === "hard"),
+      soft: reviewDecisions.filter((decision) => decision.handCategory === "soft"),
+      pair: reviewDecisions.filter((decision) => decision.handCategory === "pair"),
     }),
-    [wrongDecisions],
+    [reviewDecisions],
   );
 
-  const activeGroup = groupedMistakes[activeCategory];
-  const activeScenario = activeGroup[activeIndex] ?? activeGroup[0] ?? null;
+  const resolvedCategory = groupedMistakes[activeCategory].length > 0 ? activeCategory : firstAvailableCategory;
+  const activeGroup = groupedMistakes[resolvedCategory];
+  const boundedActiveIndex = activeGroup.length === 0 ? 0 : activeIndex % activeGroup.length;
+  const activeScenario = activeGroup[boundedActiveIndex] ?? null;
+  const displayedScenario = reviewedScenario ?? activeScenario;
 
   // This function changes the active mistake category and resets replay state.
   function selectCategory(category: HandCategory) {
     setActiveCategory(category);
     setActiveIndex(0);
     setReviewAction(null);
+    setReviewedScenario(null);
   }
 
   // This function moves to the next mistake inside the active group.
   function nextMistake() {
     if (activeGroup.length === 0) {
+      setReviewAction(null);
+      setReviewedScenario(null);
       return;
     }
 
     setActiveIndex((currentIndex) => (currentIndex + 1) % activeGroup.length);
     setReviewAction(null);
+    setReviewedScenario(null);
   }
 
   // This function records the user's replay answer against the selected mistake.
@@ -71,7 +76,13 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
     }
 
     const reviewHand = createHand(activeScenario.playerHand);
-    const advice = getOptimalAction(reviewHand, activeScenario.dealerUpcard, rules);
+    const scenarioRules = getDecisionRules(activeScenario, rules) ?? rules;
+    const advice = getOptimalAction(
+      reviewHand,
+      activeScenario.dealerUpcard,
+      scenarioRules,
+      activeScenario.isAfterSplit ?? false,
+    );
     const reviewDecision: DecisionRecord = {
       ...activeScenario,
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -79,13 +90,16 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
       playerAction: action,
       optimalAction: advice.optimalAction,
       wasCorrect: action === advice.optimalAction,
+      isAfterSplit: activeScenario.isAfterSplit ?? false,
+      rulesSnapshot: scenarioRules,
     };
 
     setReviewAction(action);
+    setReviewedScenario(activeScenario);
     onDecisionRecorded(reviewDecision);
   }
 
-  if (wrongDecisions.length === 0) {
+  if (reviewDecisions.length === 0 && !reviewedScenario) {
     return (
       <section className="panel-shell">
         <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Mistake Review</p>
@@ -97,12 +111,18 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
     );
   }
 
-  if (!activeScenario) {
+  if (!displayedScenario) {
     return null;
   }
 
-  const activeHand = createHand(activeScenario.playerHand);
-  const advice = getOptimalAction(activeHand, activeScenario.dealerUpcard, rules);
+  const activeHand = createHand(displayedScenario.playerHand);
+  const scenarioRules = getDecisionRules(displayedScenario, rules) ?? rules;
+  const advice = getOptimalAction(
+    activeHand,
+    displayedScenario.dealerUpcard,
+    scenarioRules,
+    displayedScenario.isAfterSplit ?? false,
+  );
   const wasCorrect = reviewAction ? reviewAction === advice.optimalAction : null;
 
   return (
@@ -116,7 +136,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
               key={category}
               type="button"
               onClick={() => selectCategory(category)}
-              className={`rounded-full px-4 py-2 text-sm transition ${activeCategory === category ? "bg-[color:rgba(201,168,76,0.18)] text-[var(--gold-light)]" : "bg-[color:rgba(255,255,255,0.04)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
+              className={`rounded-full px-4 py-2 text-sm transition ${resolvedCategory === category ? "bg-[color:rgba(201,168,76,0.18)] text-[var(--gold-light)]" : "bg-[color:rgba(255,255,255,0.04)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"}`}
             >
               {category} ({groupedMistakes[category].length})
             </button>
@@ -129,7 +149,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
           <div>
             <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">Replay scenario</p>
             <h3 className="mt-2 font-display text-2xl text-[var(--text-primary)]">
-              {getScenarioLabel(activeScenario)}
+              {getDecisionScenarioLabel(displayedScenario)}
             </h3>
           </div>
           <button type="button" onClick={nextMistake} className="luxury-button px-4 py-3">
@@ -141,7 +161,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
           <div>
             <p className="mb-3 text-sm text-[var(--text-secondary)]">Your original hand</p>
             <div className="flex gap-3">
-              {activeScenario.playerHand.map((card, index) => (
+              {displayedScenario.playerHand.map((card, index) => (
                 <Card key={`${card.rank}-${card.suit}-${index}`} card={card} animateFrom="player" />
               ))}
             </div>
@@ -149,7 +169,7 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
           <div>
             <p className="mb-3 text-sm text-[var(--text-secondary)]">Dealer upcard</p>
             <div className="flex gap-3">
-              <Card card={activeScenario.dealerUpcard} animateFrom="dealer" />
+              <Card card={displayedScenario.dealerUpcard} animateFrom="dealer" />
             </div>
           </div>
         </div>
@@ -157,12 +177,16 @@ export function MistakeReview({ decisions, rules, onDecisionRecorded }: MistakeR
 
       <ActionPanel
         onAction={handleAction}
-        canDouble={canDouble(activeScenario.playerHand, rules)}
-        canSplit={canSplit(activeScenario.playerHand, rules)}
+        canDouble={canDouble(displayedScenario.playerHand, scenarioRules, displayedScenario.isAfterSplit ?? false)}
+        canSplit={canSplit(displayedScenario.playerHand, scenarioRules, displayedScenario.isAfterSplit ? 1 : 0)}
         disabled={Boolean(reviewAction)}
       />
 
-      <CoachPanel advice={reviewAction ? advice : null} wasCorrect={wasCorrect} handLabel={getScenarioLabel(activeScenario)} />
+      <CoachPanel
+        advice={reviewAction ? advice : null}
+        wasCorrect={wasCorrect}
+        handLabel={getDecisionScenarioLabel(displayedScenario)}
+      />
     </section>
   );
 }
