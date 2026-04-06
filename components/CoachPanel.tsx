@@ -42,7 +42,7 @@ export function CoachPanel({ advice, wasCorrect, handLabel }: CoachPanelProps) {
 
   return (
     <div className="panel-shell coach-slide space-y-4">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Coach</p>
           <div className="mt-2 flex items-center gap-3">

@@ -172,8 +172,8 @@ function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps
           <div>
             <p className="mb-3 text-sm text-[var(--text-secondary)]">Your hand</p>
             <div className="flex gap-3">
-              {scenario.playerHand.cards.map((card) => (
-                <Card key={`${card.rank}-${card.suit}`} card={card} animateFrom="player" />
+              {scenario.playerHand.cards.map((card, index) => (
+                <Card key={`${card.rank}-${card.suit}-${index}`} card={card} animateFrom="player" />
               ))}
             </div>
           </div>

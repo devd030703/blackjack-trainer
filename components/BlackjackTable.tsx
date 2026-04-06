@@ -223,6 +223,7 @@ export function BlackjackTable({
   const [flashState, setFlashState] = useState<"correct" | "incorrect" | null>(null);
   const [roundOutcomes, setRoundOutcomes] = useState<HandOutcome[]>([]);
   const [roundCounter, setRoundCounter] = useState(0);
+  const [restartCounter, setRestartCounter] = useState(0);
   const timersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const activeSpot = playerSpots[activeSpotIndex] ?? null;
@@ -254,12 +255,12 @@ export function BlackjackTable({
     };
   }, []);
 
-  // This effect starts a fresh hand when the table first appears or when rules change.
+  // This effect starts a fresh hand when the table first appears, when rules change, or when the user requests one.
   useEffect(() => {
     startNewHand();
-    // The new hand should intentionally restart when the rules change.
+    // The new hand should intentionally restart when the rules change or when the user advances the round.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rules]);
+  }, [rules, restartCounter]);
 
   // This function stores a timeout id so we can clean it up later.
   function schedule(callback: () => void, delay: number) {
@@ -310,6 +311,11 @@ export function BlackjackTable({
     if (playerHand.isBlackjack || dealerHand.isBlackjack) {
       schedule(() => finalizeRound(nextPlayerSpots, nextDealerCards, secondDealerDraw.remainingDeck), 500);
     }
+  }
+
+  // This function exits the result overlay and immediately deals the next round.
+  function handleNextHand() {
+    setRestartCounter((currentValue) => currentValue + 1);
   }
 
   // This function records the coach feedback state after a player decision.
@@ -483,17 +489,17 @@ export function BlackjackTable({
         <div className="absolute inset-x-8 top-8 h-px bg-[linear-gradient(90deg,transparent,rgba(232,199,106,0.35),transparent)]" />
         <div className="absolute inset-x-8 bottom-8 h-px bg-[linear-gradient(90deg,transparent,rgba(232,199,106,0.22),transparent)]" />
 
-        <div className="relative z-10 space-y-8">
+        <div className="relative z-10 space-y-5 sm:space-y-8">
           <section className="table-zone">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Dealer</p>
-                <h2 className="font-display text-3xl text-[var(--text-primary)]">House hand</h2>
+                <h2 className="font-display text-xl text-[var(--text-primary)] sm:text-3xl">House hand</h2>
               </div>
               <HandValuePill label="Dealer total" value={String(dealerVisibleValue)} />
             </div>
 
-            <div className="mt-5 flex min-h-32 flex-wrap gap-3 sm:min-h-40">
+            <div className="mt-5 flex min-h-24 flex-wrap gap-2 sm:min-h-36 sm:gap-3">
               {dealerCards.map((card, index) => (
                 <Card
                   key={`dealer-${roundCounter}-${index}-${card.rank}-${card.suit}`}
@@ -505,11 +511,11 @@ export function BlackjackTable({
             </div>
           </section>
 
-          <section className="table-zone border-t border-[color:rgba(255,255,255,0.08)] pt-8">
+          <section className="table-zone border-t border-[color:rgba(255,255,255,0.08)] pt-5 sm:pt-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Player</p>
-                <h2 className="font-display text-3xl text-[var(--text-primary)]">Your seat</h2>
+                <h2 className="font-display text-xl text-[var(--text-primary)] sm:text-3xl">Your seat</h2>
               </div>
               <span className="rounded-full border border-[color:rgba(255,255,255,0.1)] px-4 py-2 text-xs uppercase tracking-[0.28em] text-[var(--text-secondary)]">
                 {phase === "playerTurn"
@@ -546,7 +552,7 @@ export function BlackjackTable({
                       </div>
                     </div>
 
-                    <div className="mt-4 flex min-h-32 flex-wrap gap-3 sm:min-h-40">
+                    <div className="mt-4 flex min-h-24 flex-wrap gap-2 sm:min-h-36 sm:gap-3">
                       {spot.cards.map((card, cardIndex) => (
                         <Card
                           key={`player-${roundCounter}-${index}-${cardIndex}-${card.rank}-${card.suit}`}
@@ -566,12 +572,12 @@ export function BlackjackTable({
           <div className="result-overlay">
             <div className="result-card">
               <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Round Result</p>
-              <h3 className="mt-3 font-display text-4xl text-[var(--text-primary)]">Settle the table</h3>
-              <div className="mt-6 space-y-3">
+              <h3 className="mt-3 font-display text-2xl text-[var(--text-primary)] sm:text-4xl">Settle the table</h3>
+              <div className="mt-4 space-y-3 sm:mt-6">
                 {roundOutcomes.map((outcome, index) => (
-                  <div key={`${outcome.title}-${index}`} className="rounded-[1.5rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.04)] p-4 text-left">
+                  <div key={`${outcome.title}-${index}`} className="rounded-[1.5rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.04)] p-3 text-left sm:p-4">
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`font-display text-2xl ${getOutcomeToneClass(outcome.tone)}`}>{outcome.title}</span>
+                      <span className={`font-display text-xl sm:text-2xl ${getOutcomeToneClass(outcome.tone)}`}>{outcome.title}</span>
                       <span className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">
                         Hand {index + 1}
                       </span>
@@ -580,7 +586,7 @@ export function BlackjackTable({
                   </div>
                 ))}
               </div>
-              <button type="button" onClick={startNewHand} className="luxury-button mt-6 px-5 py-3">
+              <button type="button" onClick={handleNextHand} className="luxury-button mt-5 w-full px-5 py-3 sm:mt-6 sm:w-auto">
                 Next hand
               </button>
             </div>

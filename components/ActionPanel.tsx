@@ -41,7 +41,7 @@ export function ActionPanel({
 
   return (
     <div className="panel-shell space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Action Panel</p>
           <h3 className="font-display text-xl text-[var(--text-primary)]">Make your move</h3>
@@ -70,7 +70,7 @@ export function ActionPanel({
               type="button"
               onClick={() => onAction(actionItem.action)}
               disabled={isDisabled}
-              className={`luxury-button min-h-[4.75rem] p-4 text-left ${feedbackClass} ${isRecommended ? "luxury-button-highlight" : ""} ${isDisabled ? "opacity-45 grayscale-[0.15]" : ""}`}
+              className={`luxury-button min-h-[3.5rem] p-3 text-left sm:min-h-[4.75rem] sm:p-4 ${feedbackClass} ${isRecommended ? "luxury-button-highlight" : ""} ${isDisabled ? "opacity-45 grayscale-[0.15]" : ""}`}
             >
               <span className="block text-base font-semibold text-[var(--text-primary)]">{actionItem.label}</span>
               <span className="mt-1 block text-xs text-[var(--text-secondary)]">{actionItem.description}</span>

@@ -19,7 +19,7 @@ const MODE_LABELS: Record<GameMode, { title: string; description: string }> = {
 export function ModeSelector({ activeMode, onChange }: ModeSelectorProps) {
   return (
     <nav className="rounded-[2rem] border border-[color:rgba(232,199,106,0.16)] bg-[color:rgba(11,25,19,0.82)] p-2 shadow-[0_20px_40px_rgba(0,0,0,0.25)] backdrop-blur">
-      <div className="grid gap-2 sm:grid-cols-5">
+      <div className="flex gap-2 overflow-x-auto pb-0.5 sm:grid sm:grid-cols-5 sm:overflow-x-visible sm:pb-0">
         {Object.entries(MODE_LABELS).map(([modeKey, modeValue]) => {
           const mode = modeKey as GameMode;
           const isActive = mode === activeMode;
@@ -29,10 +29,10 @@ export function ModeSelector({ activeMode, onChange }: ModeSelectorProps) {
               key={mode}
               type="button"
               onClick={() => onChange(mode)}
-              className={`rounded-[1.35rem] px-4 py-3 text-left transition duration-200 ${isActive ? "bg-[linear-gradient(135deg,rgba(201,168,76,0.24),rgba(26,74,46,0.85))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_20px_rgba(0,0,0,0.18)]" : "hover:bg-[color:rgba(255,255,255,0.04)]"}`}
+              className={`shrink-0 rounded-[1.35rem] px-4 py-3 text-left transition duration-200 sm:shrink sm:w-auto ${isActive ? "bg-[linear-gradient(135deg,rgba(201,168,76,0.24),rgba(26,74,46,0.85))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_10px_20px_rgba(0,0,0,0.18)]" : "hover:bg-[color:rgba(255,255,255,0.04)]"}`}
             >
-              <span className="block font-display text-lg text-[var(--text-primary)]">{modeValue.title}</span>
-              <span className="mt-1 block text-xs leading-5 text-[var(--text-secondary)]">
+              <span className="block font-display text-base text-[var(--text-primary)] sm:text-lg">{modeValue.title}</span>
+              <span className="hidden sm:mt-1 sm:block text-xs leading-5 text-[var(--text-secondary)]">
                 {modeValue.description}
               </span>
             </button>

@@ -82,7 +82,7 @@ export default function Home() {
         <div className="mx-auto flex min-h-screen w-full max-w-[1500px] items-center px-4 py-6 sm:px-6 lg:px-8">
           <div className="panel-shell w-full text-center">
             <p className="text-xs uppercase tracking-[0.45em] text-[var(--gold-light)]">Blackjack Trainer</p>
-            <h1 className="mt-4 font-display text-5xl leading-tight text-[var(--text-primary)] sm:text-6xl">
+            <h1 className="mt-4 font-display text-3xl leading-tight text-[var(--text-primary)] sm:text-5xl lg:text-6xl">
               Train the decision, not just the hand.
             </h1>
             <p className="mt-4 text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
@@ -169,16 +169,16 @@ function HydratedHome() {
             <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
               <div>
                 <p className="text-xs uppercase tracking-[0.45em] text-[var(--gold-light)]">Blackjack Trainer</p>
-                <h1 className="mt-4 max-w-3xl font-display text-5xl leading-tight text-[var(--text-primary)] sm:text-6xl">
+                <h1 className="mt-4 max-w-3xl font-display text-3xl leading-tight text-[var(--text-primary)] sm:text-5xl lg:text-6xl">
                   Train the decision, not just the hand.
                 </h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-secondary)] sm:mt-4 sm:text-base">
                   Built for repetition, coaching, and post-hand review. Practice basic strategy, pressure-test tough
                   spots, and turn mistakes into targeted drills.
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+              <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:grid-cols-1 xl:grid-cols-3">
                 <HeroMetric label="Correct rate" value={`${accuracy}%`} />
                 <HeroMetric label="Hands played" value={String(stats.totalHands)} />
                 <HeroMetric label="Mistakes to review" value={String(pendingReviewCount)} />
@@ -276,9 +276,9 @@ interface HeroMetricProps {
 // This function renders one compact headline metric in the app header.
 function HeroMetric({ label, value }: HeroMetricProps) {
   return (
-    <div className="rounded-[1.75rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-5">
-      <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">{label}</p>
-      <p className="mt-3 font-display text-4xl text-[var(--text-primary)]">{value}</p>
+    <div className="rounded-[1.5rem] border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-3 sm:rounded-[1.75rem] sm:p-5">
+      <p className="text-[0.6rem] uppercase tracking-[0.2em] text-[var(--text-secondary)] sm:text-xs sm:tracking-[0.25em]">{label}</p>
+      <p className="mt-1 font-display text-2xl text-[var(--text-primary)] sm:mt-3 sm:text-4xl">{value}</p>
     </div>
   );
 }
