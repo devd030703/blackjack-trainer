@@ -52,16 +52,18 @@ export function Card({
   return (
     <div className={`card-flip-scene ${sizeClasses} ${getAnimationClass(animateFrom)} ${className}`}>
       <div className={`card-flip-inner ${hidden ? "is-revealed" : ""}`}>
-        <div className="card-face bg-[var(--card-white)] text-slate-900 shadow-[0_16px_30px_var(--card-shadow)]">
-          <div className={`flex h-full flex-col justify-between p-2 sm:p-3 ${suitTone}`}>
-            <div className="flex flex-col leading-none">
-              <span className="font-semibold">{card.rank}</span>
-              <span className="text-base sm:text-xl">{suitSymbol}</span>
+        <div className="card-face overflow-hidden bg-[var(--card-white)] text-slate-900 shadow-[0_16px_30px_var(--card-shadow)]">
+          <div className={`relative h-full w-full ${suitTone}`}>
+            <div className="absolute left-2 top-2 flex flex-col leading-none sm:left-3 sm:top-3">
+              <span className="text-[0.85rem] font-semibold sm:text-base">{card.rank}</span>
+              <span className="text-[0.95rem] sm:text-xl">{suitSymbol}</span>
             </div>
-            <div className="flex justify-center text-[1.65rem] sm:text-4xl">{suitSymbol}</div>
-            <div className="flex rotate-180 flex-col items-end leading-none">
-              <span className="font-semibold">{card.rank}</span>
-              <span className="text-base sm:text-xl">{suitSymbol}</span>
+            <div className="absolute inset-0 flex items-center justify-center pt-1 text-[1.5rem] sm:pt-0 sm:text-4xl">
+              {suitSymbol}
+            </div>
+            <div className="absolute bottom-2 right-2 flex rotate-180 flex-col items-end leading-none sm:bottom-3 sm:right-3">
+              <span className="text-[0.85rem] font-semibold sm:text-base">{card.rank}</span>
+              <span className="text-[0.95rem] sm:text-xl">{suitSymbol}</span>
             </div>
           </div>
         </div>
