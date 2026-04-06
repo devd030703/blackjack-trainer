@@ -2,7 +2,7 @@
 
 // This file renders rapid-fire blackjack scenarios for focused basic strategy practice.
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
@@ -82,6 +82,22 @@ function createDecisionRecord(
 
 // This function renders the scenario drill mode.
 export function ScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps) {
+  const isHydrated = useSyncExternalStore(subscribeToNothing, getClientSnapshot, getServerSnapshot);
+
+  if (!isHydrated) {
+    return (
+      <section className="space-y-6">
+        <div className="panel-shell flex min-h-[20rem] items-center justify-center">
+          <p className="text-sm text-[var(--text-secondary)]">Preparing next scenario...</p>
+        </div>
+      </section>
+    );
+  }
+
+  return <HydratedScenarioDrill rules={rules} onDecisionRecorded={onDecisionRecorded} />;
+}
+
+function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps) {
   const [scenario, setScenario] = useState<DrillScenario>(() => generateScenario(rules));
   const [lastAction, setLastAction] = useState<PlayerAction | null>(null);
   const [sessionCorrect, setSessionCorrect] = useState(0);
@@ -180,4 +196,16 @@ export function ScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps)
       </button>
     </section>
   );
+}
+
+function subscribeToNothing() {
+  return () => {};
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
 }

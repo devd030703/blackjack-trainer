@@ -2,8 +2,7 @@
 
 // This file renders the main app shell, mode routing, persistence, and top-level trainer state.
 
-import { useEffect, useMemo, useState } from "react";
-import { useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { BlackjackTable } from "@/components/BlackjackTable";
 import { MistakeReview } from "@/components/MistakeReview";
 import { ModeSelector } from "@/components/ModeSelector";
@@ -74,28 +73,43 @@ function applyDecisionToStats(
 
 // This function renders the trainer shell and swaps between the five app modes.
 export default function Home() {
+  const isHydrated = useSyncExternalStore(subscribeToNothing, getClientSnapshot, getServerSnapshot);
+
+  if (!isHydrated) {
+    return (
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,#173b27_0%,#0d1b14_55%,#09120d_100%)]">
+        <div className="mx-auto flex min-h-screen w-full max-w-[1500px] items-center px-4 py-6 sm:px-6 lg:px-8">
+          <div className="panel-shell w-full text-center">
+            <p className="text-xs uppercase tracking-[0.45em] text-[var(--gold-light)]">Blackjack Trainer</p>
+            <h1 className="mt-4 font-display text-5xl leading-tight text-[var(--text-primary)] sm:text-6xl">
+              Train the decision, not just the hand.
+            </h1>
+            <p className="mt-4 text-sm leading-7 text-[var(--text-secondary)] sm:text-base">
+              Loading your table settings, coaching history, and saved progress.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return <HydratedHome />;
+}
+
+function HydratedHome() {
   const [activeMode, setActiveMode] = useState<GameMode>("play");
   const [rules, setRules] = useState<GameRules>(() => loadRules());
   const [stats, setStats] = useState<GameStats>(() => loadStats());
   const [decisions, setDecisions] = useState<DecisionRecord[]>(() => loadDecisions());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const isMounted = useSyncExternalStore(subscribeToNothing, getClientSnapshot, getServerSnapshot);
 
   useEffect(() => {
-    if (!isMounted) {
-      return;
-    }
-
     saveRules(rules);
-  }, [rules, isMounted]);
+  }, [rules]);
 
   useEffect(() => {
-    if (!isMounted) {
-      return;
-    }
-
     saveStats(stats);
-  }, [stats, isMounted]);
+  }, [stats]);
 
   const accuracy =
     stats.totalDecisions === 0 ? 0 : Math.round((stats.correctDecisions / stats.totalDecisions) * 100);
@@ -233,7 +247,6 @@ export default function Home() {
   );
 }
 
-// This function provides a stable no-op subscription for useSyncExternalStore hydration checks.
 function subscribeToNothing() {
   return () => {};
 }
