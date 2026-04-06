@@ -46,22 +46,22 @@ export function Card({
   const suitSymbol = SUIT_SYMBOLS[card.suit];
   const suitTone = getSuitTone(card.suit);
   const sizeClasses = compact
-    ? "h-24 w-16 rounded-2xl text-sm sm:h-28 sm:w-20"
-    : "h-28 w-20 rounded-[1.35rem] text-base sm:h-36 sm:w-24";
+    ? "h-20 w-14 rounded-[1rem] text-xs sm:h-28 sm:w-20 sm:rounded-2xl sm:text-sm"
+    : "h-24 w-[4.25rem] rounded-[1.15rem] text-sm sm:h-36 sm:w-24 sm:rounded-[1.35rem] sm:text-base";
 
   return (
     <div className={`card-flip-scene ${sizeClasses} ${getAnimationClass(animateFrom)} ${className}`}>
       <div className={`card-flip-inner ${hidden ? "is-revealed" : ""}`}>
         <div className="card-face bg-[var(--card-white)] text-slate-900 shadow-[0_16px_30px_var(--card-shadow)]">
-          <div className={`flex h-full flex-col justify-between p-2.5 sm:p-3 ${suitTone}`}>
+          <div className={`flex h-full flex-col justify-between p-2 sm:p-3 ${suitTone}`}>
             <div className="flex flex-col leading-none">
               <span className="font-semibold">{card.rank}</span>
-              <span className="text-lg sm:text-xl">{suitSymbol}</span>
+              <span className="text-base sm:text-xl">{suitSymbol}</span>
             </div>
-            <div className="flex justify-center text-3xl sm:text-4xl">{suitSymbol}</div>
+            <div className="flex justify-center text-[1.65rem] sm:text-4xl">{suitSymbol}</div>
             <div className="flex rotate-180 flex-col items-end leading-none">
               <span className="font-semibold">{card.rank}</span>
-              <span className="text-lg sm:text-xl">{suitSymbol}</span>
+              <span className="text-base sm:text-xl">{suitSymbol}</span>
             </div>
           </div>
         </div>
