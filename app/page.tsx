@@ -174,7 +174,7 @@ function HydratedHome() {
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--text-secondary)] sm:mt-4 sm:text-base">
                   Built for repetition, coaching, and post-hand review. Practice basic strategy, pressure-test tough
-                  spots, and turn mistakes into targeted drills.
+                  spots, and let the app build guided drills around the mistakes you are still making.
                 </p>
               </div>
 
@@ -191,10 +191,10 @@ function HydratedHome() {
               </button>
               <button
                 type="button"
-                onClick={() => setActiveMode("review")}
+                onClick={() => setActiveMode("drill")}
                 className="rounded-full border border-[color:rgba(255,255,255,0.1)] px-5 py-3 text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
               >
-                Review mistakes
+                Start guided drill
               </button>
             </div>
           </div>
@@ -225,6 +225,7 @@ function HydratedHome() {
             <ScenarioDrill
               key={JSON.stringify(rules)}
               rules={rules}
+              decisions={decisions}
               onDecisionRecorded={handleDecisionRecorded}
             />
           ) : null}

@@ -2,49 +2,19 @@
 
 // This file renders rapid-fire blackjack scenarios for focused basic strategy practice.
 
-import { useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ActionPanel } from "@/components/ActionPanel";
 import { Card } from "@/components/Card";
 import { CoachPanel } from "@/components/CoachPanel";
-import { canDouble, canSplit, createDeck, createHand, dealCard, getHandCategory } from "@/lib/blackjack";
+import { buildGuidedTrainingSession, type GuidedTrainingSession } from "@/lib/adaptive-training";
+import { canDouble, canSplit, getHandCategory } from "@/lib/blackjack";
 import { getOptimalAction } from "@/lib/strategy";
-import type { Card as PlayingCard, DecisionRecord, GameRules, Hand, PlayerAction } from "@/lib/types";
+import type { DecisionRecord, GameRules, Hand, PlayerAction } from "@/lib/types";
 
 interface ScenarioDrillProps {
   rules: GameRules;
+  decisions: DecisionRecord[];
   onDecisionRecorded: (decision: DecisionRecord) => void;
-}
-
-interface DrillScenario {
-  playerHand: Hand;
-  dealerUpcard: PlayingCard;
-}
-
-// This function creates one random two-card practice scenario with a dealer upcard.
-function generateScenario(rules: GameRules): DrillScenario {
-  let deck = createDeck(rules.numDecks);
-
-  while (deck.length > 10) {
-    const firstDraw = dealCard(deck);
-    const secondDraw = dealCard(firstDraw.remainingDeck);
-    const dealerDraw = dealCard(secondDraw.remainingDeck);
-
-    deck = dealerDraw.remainingDeck;
-
-    const playerHand = createHand([firstDraw.card, secondDraw.card]);
-
-    // Naturals end immediately in real blackjack, so they are poor drill material.
-    if (playerHand.isBlackjack) {
-      continue;
-    }
-
-    return {
-      playerHand,
-      dealerUpcard: dealerDraw.card,
-    };
-  }
-
-  throw new Error("Unable to generate a drill scenario.");
 }
 
 // This function builds a human-readable label for the current hand category.
@@ -61,7 +31,7 @@ function getHandLabel(playerHand: Hand): string {
 // This function creates a DecisionRecord from a drill answer so it can feed stats and review mode.
 function createDecisionRecord(
   playerHand: Hand,
-  dealerUpcard: PlayingCard,
+  dealerUpcard: DecisionRecord["dealerUpcard"],
   playerAction: PlayerAction,
   optimalAction: PlayerAction,
   rules: GameRules,
@@ -84,7 +54,7 @@ function createDecisionRecord(
 }
 
 // This function renders the scenario drill mode.
-export function ScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps) {
+export function ScenarioDrill({ rules, decisions, onDecisionRecorded }: ScenarioDrillProps) {
   const isHydrated = useSyncExternalStore(subscribeToNothing, getClientSnapshot, getServerSnapshot);
 
   if (!isHydrated) {
@@ -97,18 +67,43 @@ export function ScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps)
     );
   }
 
-  return <HydratedScenarioDrill rules={rules} onDecisionRecorded={onDecisionRecorded} />;
+  return <HydratedScenarioDrill rules={rules} decisions={decisions} onDecisionRecorded={onDecisionRecorded} />;
 }
 
-function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps) {
-  const [scenario, setScenario] = useState<DrillScenario>(() => generateScenario(rules));
+function HydratedScenarioDrill({ rules, decisions, onDecisionRecorded }: ScenarioDrillProps) {
+  const [session, setSession] = useState<GuidedTrainingSession>(() => buildGuidedTrainingSession(decisions, rules));
+  const [scenarioIndex, setScenarioIndex] = useState(0);
   const [lastAction, setLastAction] = useState<PlayerAction | null>(null);
   const [sessionCorrect, setSessionCorrect] = useState(0);
   const [sessionTotal, setSessionTotal] = useState(0);
+  const scenario = session.scenarios[scenarioIndex] ?? null;
 
-  // This function moves the drill forward to the next random scenario.
+  const sessionProgress = useMemo(() => {
+    if (session.scenarios.length === 0) {
+      return 0;
+    }
+
+    return Math.round((Math.min(scenarioIndex + 1, session.scenarios.length) / session.scenarios.length) * 100);
+  }, [scenarioIndex, session.scenarios.length]);
+
+  // This function rebuilds the guided session from the latest saved history.
+  function rebuildSession() {
+    const nextSession = buildGuidedTrainingSession(decisions, rules);
+    setSession(nextSession);
+    setScenarioIndex(0);
+    setLastAction(null);
+    setSessionCorrect(0);
+    setSessionTotal(0);
+  }
+
+  // This function moves the drill forward to the next guided scenario.
   function nextScenario() {
-    setScenario(generateScenario(rules));
+    if (scenarioIndex >= session.scenarios.length - 1) {
+      rebuildSession();
+      return;
+    }
+
+    setScenarioIndex((currentValue) => currentValue + 1);
     setLastAction(null);
   }
 
@@ -118,9 +113,9 @@ function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps
       return;
     }
 
-    const advice = getOptimalAction(scenario.playerHand, scenario.dealerUpcard, rules);
+    const advice = getOptimalAction(scenario.hand, scenario.dealerUpcard, rules);
     const decisionRecord = createDecisionRecord(
-      scenario.playerHand,
+      scenario.hand,
       scenario.dealerUpcard,
       action,
       advice.optimalAction,
@@ -137,42 +132,85 @@ function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps
     onDecisionRecorded(decisionRecord);
   }
 
-  const advice = getOptimalAction(scenario.playerHand, scenario.dealerUpcard, rules);
+  if (!scenario) {
+    return null;
+  }
+
+  const advice = getOptimalAction(scenario.hand, scenario.dealerUpcard, rules);
   const wasCorrect = lastAction ? lastAction === advice.optimalAction : null;
+  const isLastScenario = scenarioIndex === session.scenarios.length - 1;
 
   return (
     <section className="space-y-6">
       <div className="panel-shell flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Scenario Drill</p>
-          <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">Rapid-fire repetition</h2>
+          <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Guided Drill</p>
+          <h2 className="mt-2 font-display text-3xl text-[var(--text-primary)]">{session.title}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-            Answer the spot quickly. The goal is recognition speed, not table theatrics.
+            {session.description}
           </p>
         </div>
-        <div className="rounded-[1.5rem] border border-[color:rgba(232,199,106,0.16)] bg-[color:rgba(255,255,255,0.03)] px-5 py-4">
-          <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">Session score</p>
-          <p className="mt-2 font-display text-4xl text-[var(--text-primary)]">
-            {sessionCorrect}/{sessionTotal}
-          </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[1.5rem] border border-[color:rgba(232,199,106,0.16)] bg-[color:rgba(255,255,255,0.03)] px-5 py-4">
+            <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">Session score</p>
+            <p className="mt-2 font-display text-4xl text-[var(--text-primary)]">
+              {sessionCorrect}/{sessionTotal}
+            </p>
+          </div>
+
+          <div className="rounded-[1.5rem] border border-[color:rgba(232,199,106,0.16)] bg-[color:rgba(255,255,255,0.03)] px-5 py-4">
+            <p className="text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">Progress</p>
+            <p className="mt-2 font-display text-4xl text-[var(--text-primary)]">
+              {scenarioIndex + 1}/{session.scenarios.length}
+            </p>
+          </div>
         </div>
       </div>
 
       <div className="panel-shell space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-[color:rgba(201,168,76,0.12)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--gold-light)]">
+              {scenario.focusLabel}
+            </span>
+            <span className="rounded-full bg-[color:rgba(255,255,255,0.04)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">
+              Spot {scenarioIndex + 1} of {session.scenarios.length}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={rebuildSession}
+            className="rounded-full border border-[color:rgba(255,255,255,0.12)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]"
+          >
+            Rebuild session
+          </button>
+        </div>
+
+        <div className="h-2 overflow-hidden rounded-full bg-[color:rgba(255,255,255,0.08)]">
+          <div
+            className="h-full rounded-full bg-[linear-gradient(90deg,var(--gold),var(--gold-light))]"
+            style={{ width: `${sessionProgress}%` }}
+          />
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full bg-[color:rgba(255,255,255,0.04)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--text-secondary)]">
-            {getHandLabel(scenario.playerHand)}
+            {scenario.handLabel}
           </span>
           <span className="rounded-full bg-[color:rgba(201,168,76,0.12)] px-3 py-1 text-xs uppercase tracking-[0.25em] text-[var(--gold-light)]">
             Dealer {scenario.dealerUpcard.rank}
           </span>
         </div>
 
+        <p className="text-sm leading-6 text-[var(--text-secondary)]">{scenario.note}</p>
+
         <div className="grid gap-6 md:grid-cols-2">
           <div>
             <p className="mb-3 text-sm text-[var(--text-secondary)]">Your hand</p>
             <div className="flex gap-3">
-              {scenario.playerHand.cards.map((card, index) => (
+              {scenario.hand.cards.map((card, index) => (
                 <Card key={`${card.rank}-${card.suit}-${index}`} card={card} animateFrom="player" />
               ))}
             </div>
@@ -188,15 +226,15 @@ function HydratedScenarioDrill({ rules, onDecisionRecorded }: ScenarioDrillProps
 
       <ActionPanel
         onAction={handleAction}
-        canDouble={canDouble(scenario.playerHand.cards, rules)}
-        canSplit={canSplit(scenario.playerHand.cards, rules)}
+        canDouble={canDouble(scenario.hand.cards, rules)}
+        canSplit={canSplit(scenario.hand.cards, rules)}
         disabled={Boolean(lastAction)}
       />
 
-      <CoachPanel advice={lastAction ? advice : null} wasCorrect={wasCorrect} handLabel={getHandLabel(scenario.playerHand)} />
+      <CoachPanel advice={lastAction ? advice : null} wasCorrect={wasCorrect} handLabel={getHandLabel(scenario.hand)} />
 
       <button type="button" onClick={nextScenario} className="luxury-button px-5 py-3">
-        Next scenario
+        {isLastScenario ? "Finish session" : "Next scenario"}
       </button>
     </section>
   );

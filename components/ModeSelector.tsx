@@ -10,7 +10,7 @@ interface ModeSelectorProps {
 const MODE_LABELS: Record<GameMode, { title: string; description: string }> = {
   play: { title: "Play", description: "Full hands with silent stat tracking" },
   coach: { title: "Coach", description: "Guided play with highlighted moves" },
-  drill: { title: "Drill", description: "Rapid-fire scenario practice" },
+  drill: { title: "Drill", description: "Adaptive sessions built from your leaks" },
   review: { title: "Review", description: "Revisit missed decisions" },
   stats: { title: "Stats", description: "Measure progress and weak spots" },
 };
@@ -42,4 +42,3 @@ export function ModeSelector({ activeMode, onChange }: ModeSelectorProps) {
     </nav>
   );
 }
-
