@@ -51,7 +51,7 @@ export function Card({
 
   return (
     <div className={`card-flip-scene ${sizeClasses} ${getAnimationClass(animateFrom)} ${className}`}>
-      <div className={`card-flip-inner ${!hidden ? "is-revealed" : ""}`}>
+      <div className={`card-flip-inner ${hidden ? "is-revealed" : ""}`}>
         <div className="card-face bg-[var(--card-white)] text-slate-900 shadow-[0_16px_30px_var(--card-shadow)]">
           <div className={`flex h-full flex-col justify-between p-2.5 sm:p-3 ${suitTone}`}>
             <div className="flex flex-col leading-none">
