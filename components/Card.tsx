@@ -1,179 +1,78 @@
-/**
- * components/Card.tsx
- *
- * Renders a single playing card.
- *
- * Cards can be:
- * - Face-up: shows the rank and suit symbol
- * - Face-down: shows a decorative card back pattern
- *
- * Supports two deal animations:
- * - 'top':    card slides in from above (for dealer cards)
- * - 'bottom': card slides in from below (for player cards)
- *
- * The flip animation plays when a face-down card is revealed
- * (e.g. dealer's hole card at the start of the dealer's turn).
- */
+// This file renders a single playing card, including face-up and face-down states.
 
-'use client'  // This component uses animation state, so it must be a Client Component
-
-import { useEffect, useState } from 'react'
-import type { Card as CardType } from '@/lib/types'
-
-// ─── Props ────────────────────────────────────────────────────────────────────
+import type { Card as PlayingCard } from "@/lib/types";
 
 interface CardProps {
-  /** The card data (rank, suit, faceUp, id) */
-  card: CardType
-  /** Which direction the deal-in animation comes from */
-  animateIn?: 'top' | 'bottom'
-  /** Additional CSS classes (e.g. for positioning offsets) */
-  className?: string
+  card: PlayingCard;
+  hidden?: boolean;
+  animateFrom?: "dealer" | "player";
+  compact?: boolean;
+  className?: string;
 }
 
-// ─── Suit helpers ─────────────────────────────────────────────────────────────
+const SUIT_SYMBOLS: Record<PlayingCard["suit"], string> = {
+  hearts: "♥",
+  diamonds: "♦",
+  clubs: "♣",
+  spades: "♠",
+};
 
-/**
- * Returns the Unicode symbol for a suit.
- * ♠ ♥ ♦ ♣
- */
-function getSuitSymbol(suit: CardType['suit']): string {
-  const symbols = {
-    spades:   '♠',
-    hearts:   '♥',
-    diamonds: '♦',
-    clubs:    '♣',
-  }
-  return symbols[suit]
+// This function returns the color class used for the card suit.
+function getSuitTone(suit: PlayingCard["suit"]): string {
+  return suit === "hearts" || suit === "diamonds" ? "text-[var(--incorrect-red)]" : "text-slate-900";
 }
 
-/**
- * Returns true if the suit should be displayed in red.
- * Hearts and diamonds are red; clubs and spades are dark/black.
- */
-function isRedSuit(suit: CardType['suit']): boolean {
-  return suit === 'hearts' || suit === 'diamonds'
-}
-
-/**
- * Returns a display label for the rank.
- * All ranks display as-is (A, 2–10, J, Q, K).
- */
-function getRankDisplay(rank: CardType['rank']): string {
-  return rank
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function Card({ card, animateIn, className = '' }: CardProps) {
-  /**
-   * `isFlipping` tracks whether the flip animation is currently playing.
-   * We trigger it when a face-down card becomes face-up (hole card reveal).
-   */
-  const [isFlipping, setIsFlipping] = useState(false)
-
-  /**
-   * `wasFlippedFrom` remembers the previous faceUp state so we know
-   * when a face-down → face-up transition happens.
-   */
-  const [prevFaceUp, setPrevFaceUp] = useState(card.faceUp)
-
-  /**
-   * Watch for changes in faceUp status.
-   * If the card transitions from face-down to face-up, play the flip animation.
-   */
-  useEffect(() => {
-    if (!prevFaceUp && card.faceUp) {
-      // Card was just revealed — trigger flip animation
-      setIsFlipping(true)
-      // Clear the flip class after the animation completes (600ms)
-      const timer = setTimeout(() => setIsFlipping(false), 600)
-      return () => clearTimeout(timer)
-    }
-    setPrevFaceUp(card.faceUp)
-  }, [card.faceUp, prevFaceUp])
-
-  // ── Deal-in animation class ────────────────────────────────────────────────
-  // Tailwind v4 supports arbitrary animation values with this syntax:
-  // animate-[keyframe-name_duration_easing]
-  const dealAnimation =
-    animateIn === 'top'    ? 'animate-[deal-in-top_350ms_ease-out]' :
-    animateIn === 'bottom' ? 'animate-[deal-in-bottom_350ms_ease-out]' :
-    ''
-
-  // ── Flip animation class ───────────────────────────────────────────────────
-  const flipAnimation = isFlipping ? 'animate-[flip-reveal_600ms_ease-in-out]' : ''
-
-  // ── Suit colour ───────────────────────────────────────────────────────────
-  const suitColour = isRedSuit(card.suit) ? 'text-red-500' : 'text-gray-900'
-
-  // ── Render face-down card ──────────────────────────────────────────────────
-  if (!card.faceUp) {
-    return (
-      <div
-        className={`
-          card-back
-          relative w-16 h-24 sm:w-20 sm:h-28
-          rounded-lg
-          flex items-center justify-center
-          select-none
-          ${dealAnimation}
-          ${flipAnimation}
-          ${className}
-        `}
-        style={{
-          boxShadow: '3px 3px 8px rgba(0,0,0,0.5)',
-        }}
-      >
-        {/* Decorative suit symbol watermark on back */}
-        <span className="text-3xl text-white/10 font-display select-none">♠</span>
-      </div>
-    )
+// This function returns the animation class based on where the card is being dealt from.
+function getAnimationClass(animateFrom?: "dealer" | "player"): string {
+  if (animateFrom === "dealer") {
+    return "card-enter-top";
   }
 
-  // ── Render face-up card ────────────────────────────────────────────────────
-  const rankDisplay = getRankDisplay(card.rank)
-  const suitSymbol = getSuitSymbol(card.suit)
+  if (animateFrom === "player") {
+    return "card-enter-bottom";
+  }
+
+  return "";
+}
+
+// This function renders a card face or card back for blackjack hands.
+export function Card({
+  card,
+  hidden = false,
+  animateFrom,
+  compact = false,
+  className = "",
+}: CardProps) {
+  const suitSymbol = SUIT_SYMBOLS[card.suit];
+  const suitTone = getSuitTone(card.suit);
+  const sizeClasses = compact
+    ? "h-24 w-16 rounded-2xl text-sm sm:h-28 sm:w-20"
+    : "h-28 w-20 rounded-[1.35rem] text-base sm:h-36 sm:w-24";
 
   return (
-    <div
-      className={`
-        relative w-16 h-24 sm:w-20 sm:h-28
-        rounded-lg
-        bg-card-white
-        flex items-center justify-center
-        select-none
-        ${dealAnimation}
-        ${flipAnimation}
-        ${className}
-      `}
-      style={{
-        boxShadow: '3px 3px 8px rgba(0,0,0,0.5)',
-      }}
-    >
-      {/* Top-left rank + suit */}
-      <div className={`absolute top-1 left-1.5 flex flex-col items-center leading-none ${suitColour}`}>
-        <span className="text-xs sm:text-sm font-bold font-display">{rankDisplay}</span>
-        <span className="text-xs">{suitSymbol}</span>
-      </div>
-
-      {/* Centre suit symbol — large, decorative */}
-      <span className={`text-2xl sm:text-3xl ${suitColour} opacity-30 select-none`}>
-        {suitSymbol}
-      </span>
-
-      {/* Bottom-right rank + suit, rotated 180° to mirror the top-left */}
-      <div
-        className={`
-          absolute bottom-1 right-1.5
-          flex flex-col items-center leading-none
-          rotate-180
-          ${suitColour}
-        `}
-      >
-        <span className="text-xs sm:text-sm font-bold font-display">{rankDisplay}</span>
-        <span className="text-xs">{suitSymbol}</span>
+    <div className={`card-flip-scene ${sizeClasses} ${getAnimationClass(animateFrom)} ${className}`}>
+      <div className={`card-flip-inner ${hidden ? "is-revealed" : ""}`}>
+        <div className="card-face bg-[var(--card-white)] text-slate-900 shadow-[0_16px_30px_var(--card-shadow)]">
+          <div className={`flex h-full flex-col justify-between p-2.5 sm:p-3 ${suitTone}`}>
+            <div className="flex flex-col leading-none">
+              <span className="font-semibold">{card.rank}</span>
+              <span className="text-lg sm:text-xl">{suitSymbol}</span>
+            </div>
+            <div className="flex justify-center text-3xl sm:text-4xl">{suitSymbol}</div>
+            <div className="flex rotate-180 flex-col items-end leading-none">
+              <span className="font-semibold">{card.rank}</span>
+              <span className="text-lg sm:text-xl">{suitSymbol}</span>
+            </div>
+          </div>
+        </div>
+        <div className="card-face card-back shadow-[0_16px_30px_var(--card-shadow)]">
+          <div className="h-full w-full rounded-[inherit] border border-[color:rgba(255,232,176,0.28)] bg-[radial-gradient(circle_at_center,rgba(255,236,182,0.2),transparent_58%),linear-gradient(135deg,#193d2a,#0f261b_60%,#245238)] p-1.5">
+            <div className="flex h-full items-center justify-center rounded-[calc(1.35rem-6px)] border border-[color:rgba(232,199,106,0.3)] bg-[linear-gradient(135deg,rgba(201,168,76,0.08),rgba(17,31,24,0.35))]">
+              <div className="h-4/5 w-4/5 rounded-[1rem] border border-dashed border-[color:rgba(232,199,106,0.35)] bg-[radial-gradient(circle_at_top,rgba(232,199,106,0.25),transparent_40%),repeating-linear-gradient(45deg,rgba(255,255,255,0.04)_0_6px,transparent_6px_12px)]" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,193 +1,83 @@
-/**
- * components/ActionPanel.tsx
- *
- * The four action buttons: Hit, Stand, Double, Split (and Surrender if enabled).
- *
- * Features:
- * - Disables Double and Split when they're not applicable
- * - In Coach mode, highlights the recommended action with a gold glow
- * - Briefly flashes green (correct) or red (incorrect) after the player acts
- * - Satisfying press animation on all buttons (scale-down on click)
- * - Mobile-friendly: large tap targets
- */
+// This file renders the player action buttons used in play, coach, drill, and review modes.
 
-'use client'
-
-import { useState, useEffect } from 'react'
-import type { GameState, PlayerAction, GameMode, StrategyAdvice } from '@/lib/types'
-import { canDouble, canSplit } from '@/lib/blackjack'
-
-// ─── Props ────────────────────────────────────────────────────────────────────
+import type { PlayerAction } from "@/lib/types";
 
 interface ActionPanelProps {
-  gameState: GameState
-  onAction: (action: PlayerAction) => void
-  gameMode: GameMode
-  /** Strategy advice — used to highlight the recommended button in Coach mode */
-  advice: StrategyAdvice | null
-  /** Whether the player just made a decision (triggers flash animation) */
-  lastActionResult?: 'correct' | 'incorrect' | null
+  onAction: (action: PlayerAction) => void;
+  canDouble: boolean;
+  canSplit: boolean;
+  recommendedAction?: PlayerAction | null;
+  feedbackState?: "correct" | "incorrect" | null;
+  disabled?: boolean;
 }
 
-// ─── Button config ────────────────────────────────────────────────────────────
-
-interface ActionButton {
-  action: PlayerAction
-  label: string
-  /** Short key hint shown below label */
-  hint?: string
+interface ActionButtonConfig {
+  action: PlayerAction;
+  label: string;
+  description: string;
+  enabled: boolean;
 }
 
-// The four main buttons in display order
-const BUTTONS: ActionButton[] = [
-  { action: 'hit',       label: 'Hit',         hint: 'H' },
-  { action: 'stand',     label: 'Stand',        hint: 'S' },
-  { action: 'double',    label: 'Double',       hint: 'D' },
-  { action: 'split',     label: 'Split',        hint: 'P' },
-]
+// This function returns the label shown under a highlighted recommendation.
+function getRecommendationText(action: PlayerAction): string {
+  return `Coach recommends ${action}.`;
+}
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function ActionPanel({
-  gameState,
+// This function renders the four blackjack action buttons with state-aware styling.
+export function ActionPanel({
   onAction,
-  gameMode,
-  advice,
-  lastActionResult,
+  canDouble,
+  canSplit,
+  recommendedAction = null,
+  feedbackState = null,
+  disabled = false,
 }: ActionPanelProps) {
-  /**
-   * flashAction: which button to flash after the player acts.
-   * We show a green flash for correct moves, red for incorrect.
-   */
-  const [flashAction, setFlashAction] = useState<PlayerAction | null>(null)
-  const [flashType, setFlashType] = useState<'correct' | 'incorrect' | null>(null)
-
-  /**
-   * When lastActionResult changes, trigger a brief flash on the button
-   * that was just pressed, then clear it after 800ms.
-   */
-  useEffect(() => {
-    if (lastActionResult && gameState.lastDecision) {
-      setFlashAction(gameState.lastDecision.playerAction)
-      setFlashType(lastActionResult)
-
-      const timer = setTimeout(() => {
-        setFlashAction(null)
-        setFlashType(null)
-      }, 800)
-
-      return () => clearTimeout(timer)
-    }
-  }, [lastActionResult, gameState.lastDecision])
-
-  // ── Determine which actions are available ─────────────────────────────────
-  const playerCards = gameState.playerHand ?? []
-  const phase = gameState.phase
-
-  // Only show buttons during the player's turn
-  const isPlayerTurn = phase === 'playerTurn'
-
-  // Check which special actions are eligible
-  const doubleAllowed  = isPlayerTurn && canDouble(playerCards, gameState.rules)
-  const splitAllowed   = isPlayerTurn && canSplit(playerCards, gameState.rules)
-  const surrenderAllowed = gameState.rules.surrenderAllowed && playerCards.length === 2 && isPlayerTurn
-
-  // Determine which action the strategy recommends (for coach mode highlight)
-  const recommendedAction = advice?.optimalAction ?? null
-
-  // ── Build button list including optional surrender ─────────────────────────
-  const allButtons = surrenderAllowed
-    ? [...BUTTONS, { action: 'surrender' as PlayerAction, label: 'Surrender', hint: 'R' }]
-    : BUTTONS
-
-  // ── Button style builder ───────────────────────────────────────────────────
-
-  /**
-   * Returns the complete className string for a given action button.
-   * Factors in: disabled state, coach highlight, flash state.
-   */
-  function getButtonStyle(action: PlayerAction, disabled: boolean): string {
-    const base = `
-      relative flex-1 min-w-0
-      py-4 px-2
-      rounded-xl
-      text-sm font-semibold
-      transition-all duration-75
-      active:scale-95
-      focus:outline-none focus:ring-2 focus:ring-gold/50
-      select-none
-    `
-
-    // Flash state overrides everything else for 800ms after an action
-    if (flashAction === action && flashType === 'correct') {
-      return base + ' bg-correct-green/20 border-2 border-correct-green text-correct-green scale-95'
-    }
-    if (flashAction === action && flashType === 'incorrect') {
-      return base + ' bg-incorrect-red/20 border-2 border-incorrect-red text-incorrect-red scale-95'
-    }
-
-    // Disabled button
-    if (disabled) {
-      return base + ' bg-bg-dark/40 border border-text-secondary/20 text-text-secondary/40 cursor-not-allowed'
-    }
-
-    // Coach mode: highlight the recommended action with a gold glow/ring
-    if (gameMode === 'coach' && action === recommendedAction) {
-      return base + ' bg-gold/20 border-2 border-gold text-gold font-bold' +
-             ' shadow-[0_0_12px_rgba(201,168,76,0.5)]' +
-             ' animate-[coach-pulse_2s_ease-in-out_infinite]'
-    }
-
-    // Normal enabled button
-    return base + ' bg-felt-green-light/60 border border-gold/20 text-text-primary hover:bg-felt-green-light hover:border-gold/40 hover:text-gold-light'
-  }
-
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  if (!isPlayerTurn) {
-    // Don't show buttons outside of player turn (could show a disabled state)
-    return null
-  }
+  const actions: ActionButtonConfig[] = [
+    { action: "hit", label: "Hit", description: "Take one more card", enabled: true },
+    { action: "stand", label: "Stand", description: "Keep your total", enabled: true },
+    { action: "double", label: "Double", description: "One card only, bigger edge", enabled: canDouble },
+    { action: "split", label: "Split", description: "Turn a pair into two hands", enabled: canSplit },
+  ];
 
   return (
-    <div className="w-full">
-      {/* Coach mode banner */}
-      {gameMode === 'coach' && recommendedAction && (
-        <p className="text-center text-xs text-gold/70 mb-2 animate-[fade-scale_200ms_ease-out]">
-          Coach suggests:{' '}
-          <span className="font-semibold text-gold">
-            {recommendedAction.charAt(0).toUpperCase() + recommendedAction.slice(1)}
-          </span>
-        </p>
-      )}
+    <div className="panel-shell space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Action Panel</p>
+          <h3 className="font-display text-xl text-[var(--text-primary)]">Make your move</h3>
+        </div>
+        {recommendedAction ? (
+          <p className="rounded-full border border-[color:rgba(232,199,106,0.35)] bg-[color:rgba(201,168,76,0.14)] px-3 py-1 text-xs font-medium text-[var(--gold-light)]">
+            {getRecommendationText(recommendedAction)}
+          </p>
+        ) : null}
+      </div>
 
-      {/* Button grid */}
-      <div className="flex gap-2">
-        {allButtons.map(({ action, label }) => {
-          // Determine if this specific button should be disabled
-          let disabled = !isPlayerTurn
-          if (action === 'double')    disabled = !doubleAllowed
-          if (action === 'split')     disabled = !splitAllowed
-          if (action === 'surrender') disabled = !surrenderAllowed
+      <div className="grid grid-cols-2 gap-3">
+        {actions.map((actionItem) => {
+          const isRecommended = recommendedAction === actionItem.action;
+          const isDisabled = disabled || !actionItem.enabled;
+          const feedbackClass =
+            feedbackState === "correct"
+              ? "ring-2 ring-[color:rgba(46,204,113,0.7)]"
+              : feedbackState === "incorrect"
+                ? "ring-2 ring-[color:rgba(231,76,60,0.7)]"
+                : "";
 
           return (
             <button
-              key={action}
-              onClick={() => !disabled && onAction(action)}
-              disabled={disabled}
-              className={getButtonStyle(action, disabled)}
-              aria-label={label}
+              key={actionItem.action}
+              type="button"
+              onClick={() => onAction(actionItem.action)}
+              disabled={isDisabled}
+              className={`luxury-button min-h-[4.75rem] p-4 text-left ${feedbackClass} ${isRecommended ? "luxury-button-highlight" : ""} ${isDisabled ? "opacity-45 grayscale-[0.15]" : ""}`}
             >
-              {label}
-
-              {/* Small coach indicator dot on the recommended button */}
-              {gameMode === 'coach' && action === recommendedAction && !disabled && (
-                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-gold" />
-              )}
+              <span className="block text-base font-semibold text-[var(--text-primary)]">{actionItem.label}</span>
+              <span className="mt-1 block text-xs text-[var(--text-secondary)]">{actionItem.description}</span>
             </button>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

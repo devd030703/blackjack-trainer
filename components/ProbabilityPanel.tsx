@@ -1,139 +1,60 @@
-/**
- * components/ProbabilityPanel.tsx
- *
- * Displays live probability information during the player's turn.
- * Shows a compact 2×2 grid with:
- *  - Bust if Hit %
- *  - Dealer Bust Chance %
- *  - Recommendation strength bar (0–100)
- *  - Plain-English reasoning sentence
- *
- * This panel is visible whenever the game phase is 'playerTurn'.
- * It gives players the statistical context behind their decisions.
- */
+// This file renders compact probability and pressure stats for the current player decision.
 
-'use client'
-
-import type { ProbabilityInfo } from '@/lib/types'
-
-// ─── Props ────────────────────────────────────────────────────────────────────
+import type { ProbabilityInfo } from "@/lib/types";
 
 interface ProbabilityPanelProps {
-  /** Probability data computed by lib/probability.ts */
-  probInfo: ProbabilityInfo | null
+  probabilityInfo: ProbabilityInfo;
 }
 
-// ─── Sub-component: stat tile ─────────────────────────────────────────────────
-
-/**
- * A single stat tile with a label and a big numeric value.
- * Used for bust% and dealer bust% cells.
- */
-function StatTile({
-  label,
-  value,
-  valueColour = 'text-text-primary',
-}: {
-  label: string
-  value: string
-  valueColour?: string
-}) {
+// This function renders the probability coaching grid for the active decision.
+export function ProbabilityPanel({ probabilityInfo }: ProbabilityPanelProps) {
   return (
-    <div className="bg-bg-dark/40 rounded-lg p-3 text-center">
-      <p className="text-text-secondary text-xs mb-1">{label}</p>
-      <p className={`text-xl font-bold font-display ${valueColour}`}>{value}</p>
-    </div>
-  )
-}
+    <div className="panel-shell space-y-4">
+      <div>
+        <p className="text-xs uppercase tracking-[0.35em] text-[var(--text-secondary)]">Probability</p>
+        <h3 className="mt-2 font-display text-xl text-[var(--text-primary)]">Pressure snapshot</h3>
+      </div>
 
-// ─── Helper: colour for bust probability ─────────────────────────────────────
-
-/**
- * Returns a text colour class based on how dangerous a bust% is.
- * Low bust% = green (safe to hit), high bust% = red (dangerous).
- */
-function bustColour(bustPct: number): string {
-  if (bustPct === 0)   return 'text-correct-green'
-  if (bustPct < 40)    return 'text-correct-green'
-  if (bustPct < 65)    return 'text-accent-amber'
-  return 'text-incorrect-red'
-}
-
-/**
- * Returns a colour for the dealer bust %.
- * High dealer bust = green (good for player), low = red.
- */
-function dealerBustColour(bustPct: number): string {
-  if (bustPct >= 38)   return 'text-correct-green'
-  if (bustPct >= 28)   return 'text-accent-amber'
-  return 'text-incorrect-red'
-}
-
-/**
- * Returns a CSS gradient colour for the recommendation strength bar.
- * Strong = gold/green, weak = gray.
- */
-function strengthBarColour(strength: number): string {
-  if (strength >= 80)  return 'bg-gold'
-  if (strength >= 60)  return 'bg-accent-amber'
-  return 'bg-text-secondary'
-}
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
-export default function ProbabilityPanel({ probInfo }: ProbabilityPanelProps) {
-  // Don't render if probability info hasn't been computed yet
-  if (!probInfo) return null
-
-  const { bustIfHit, dealerBustProbability, recommendationStrength, reasoning } = probInfo
-
-  return (
-    <div className="bg-bg-panel panel-border rounded-xl p-4 mt-3 animate-[slide-up_200ms_ease-out]">
-      {/* Panel header */}
-      <p className="text-text-secondary text-xs font-semibold uppercase tracking-wider mb-3">
-        Probability Analysis
-      </p>
-
-      {/* ── Stats grid ────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
-        {/* Bust if Hit */}
-        <StatTile
-          label="Bust if Hit"
-          value={bustIfHit === 0 ? '0%' : `${bustIfHit}%`}
-          valueColour={bustColour(bustIfHit)}
-        />
-
-        {/* Dealer Bust Chance */}
-        <StatTile
-          label="Dealer Bust Chance"
-          value={`${dealerBustProbability}%`}
-          valueColour={dealerBustColour(dealerBustProbability)}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCell label="Bust if hit" value={`${probabilityInfo.bustIfHit}%`} />
+        <StatCell
+          label="Dealer bust chance"
+          value={`${probabilityInfo.dealerBustProbability}%`}
         />
       </div>
 
-      {/* ── Recommendation strength bar ───────────────────────────────────── */}
-      <div className="mb-3">
-        <div className="flex justify-between items-center mb-1">
-          <p className="text-text-secondary text-xs">Recommendation Strength</p>
-          <p className="text-text-secondary text-xs">{recommendationStrength}/100</p>
+      <div className="rounded-2xl border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-4">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-[var(--text-secondary)]">Recommendation strength</span>
+          <span className="font-semibold text-[var(--text-primary)]">
+            {probabilityInfo.recommendationStrength}/100
+          </span>
         </div>
-        {/* Bar container */}
-        <div className="h-2 bg-bg-dark rounded-full overflow-hidden">
-          {/*
-            The filled portion. Width is set inline because Tailwind doesn't
-            generate dynamic width classes for arbitrary percentages.
-          */}
+        <div className="mt-3 h-2 overflow-hidden rounded-full bg-[color:rgba(255,255,255,0.08)]">
           <div
-            className={`h-full rounded-full transition-all duration-500 ${strengthBarColour(recommendationStrength)}`}
-            style={{ width: `${recommendationStrength}%` }}
+            className="h-full rounded-full bg-[linear-gradient(90deg,var(--gold),var(--gold-light))] transition-[width] duration-300"
+            style={{ width: `${probabilityInfo.recommendationStrength}%` }}
           />
         </div>
       </div>
 
-      {/* ── Reasoning text ────────────────────────────────────────────────── */}
-      <p className="text-text-secondary text-xs leading-relaxed italic">
-        {reasoning}
-      </p>
+      <p className="text-sm leading-6 text-[var(--text-secondary)]">{probabilityInfo.reasoning}</p>
     </div>
-  )
+  );
 }
+
+interface StatCellProps {
+  label: string;
+  value: string;
+}
+
+// This function renders one compact metric cell inside the probability grid.
+function StatCell({ label, value }: StatCellProps) {
+  return (
+    <div className="rounded-2xl border border-[color:rgba(255,255,255,0.08)] bg-[color:rgba(255,255,255,0.03)] p-4">
+      <p className="text-xs uppercase tracking-[0.2em] text-[var(--text-secondary)]">{label}</p>
+      <p className="mt-2 font-display text-2xl text-[var(--text-primary)]">{value}</p>
+    </div>
+  );
+}
+
