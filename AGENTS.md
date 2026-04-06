@@ -9,12 +9,15 @@ This version has breaking changes. Before changing routing, layouts, rendering b
 ## 1. Project overview
 
 - This repository is a blackjack training web app built for a polished, portfolio-quality experience.
-- The intended product includes gameplay, coaching, drills, stats, mistake review, configurable rules, and probability guidance.
-- Today, the repository contains the foundation for that app:
-  - `lib/` already holds the core blackjack, strategy, rules, probability, and storage logic.
-  - `components/` already holds presentational UI for the blackjack table and related panels.
-  - `app/page.tsx` is still the default starter page and does not yet wire the blackjack experience together.
-- When contributing, treat the existing domain logic and UI components as the real source of architectural intent.
+- The live product already includes gameplay, live coaching, adaptive drills, a timed exam, mistake review, persistent stats, configurable rules, and probability guidance.
+- `app/page.tsx` is the real trainer shell now. It hydrates saved state, owns top-level orchestration, switches between modes, and keeps stats visible beneath the active training flow.
+- The architecture is centered on a learning loop:
+  - `Play` for full-hand rhythm with post-hand review
+  - `Coach` for live strategy guidance
+  - `Drill` for high-density targeted reps
+  - `Exam` for timed no-hint benchmarking
+  - `Review` for replaying unresolved mistakes
+- When contributing, treat the existing domain logic, adaptive-training helpers, and mode components as the source of architectural intent.
 
 ## 2. Main tech stack
 
@@ -47,18 +50,23 @@ This version has breaking changes. Before changing routing, layouts, rendering b
   - Root layout, metadata, global fonts, and app shell.
   - Server Component by default.
 - `app/page.tsx`
-  - Current entry page.
-  - At the moment this is scaffold content and not the real blackjack UI yet.
+  - Live trainer entry page and top-level orchestrator.
+  - Owns hydration, rules/state persistence, mode switching, and cross-mode stats updates.
 - `app/globals.css`
   - Tailwind v4 import, theme tokens, custom utility classes, and shared animations.
   - This file defines the casino-inspired palette and table/card visual language.
 - `components/`
-  - Presentational client components for the future app UI.
-  - `BlackjackTable.tsx`: main game table shell and layout
+  - Client components for the live training product.
+  - `BlackjackTable.tsx`: full hand loop for `play` and `coach`
   - `ActionPanel.tsx`: action buttons
-  - `CoachPanel.tsx`: decision feedback
-  - `ProbabilityPanel.tsx`: probability summary
+  - `CoachPanel.tsx`: decision feedback and recommendation detail
+  - `ProbabilityPanel.tsx`: probability summary for coach mode
   - `ModeSelector.tsx`: top-level mode tabs
+  - `RulesSettings.tsx`: slide-over table rule controls
+  - `ScenarioDrill.tsx`: adaptive guided drill sessions
+  - `ExamSession.tsx`: timed benchmark mode
+  - `MistakeReview.tsx`: unresolved-mistake replay flow
+  - `StatsDashboard.tsx`: persistent performance summary and reset controls
   - `Card.tsx`: visual card rendering and reveal animation
 - `lib/types.ts`
   - Central source of truth for domain types. Prefer adding shared types here.
@@ -71,6 +79,14 @@ This version has breaking changes. Before changing routing, layouts, rendering b
   - Probability display calculations using lookup values and readable reasoning.
 - `lib/rules.ts`
   - Default rules and rule descriptions.
+- `lib/modes.ts`
+  - Shared copy and metadata for the product's training modes.
+- `lib/learning-events.ts`
+  - Normalizes decision records with timing, hint, exposure, and repeated-mistake metadata.
+- `lib/decision-records.ts`
+  - Scenario identity, display labels, rule snapshots, and unresolved-review helpers.
+- `lib/adaptive-training.ts`
+  - Builds guided drill sessions and benchmark exams from history plus coverage scenarios.
 - `lib/storage.ts`
   - SSR-safe `localStorage` helpers for rules, stats, and decision history.
 
@@ -97,6 +113,7 @@ This version has breaking changes. Before changing routing, layouts, rendering b
   - `Playfair Display` for decorative/display text
   - `Inter` for UI/body text
 - Keep the table/card/panel look consistent with existing components.
+- Keep the dashboard, drill, exam, and review panels in the same visual family as the table UI.
 - Preserve existing motion patterns and keyframes instead of adding unrelated animation styles.
 - Ensure mobile and desktop responsiveness remain intact.
 - Prefer extending existing component patterns over introducing a separate visual system.
@@ -118,6 +135,9 @@ This version has breaking changes. Before changing routing, layouts, rendering b
 - Keep training logic separate from rendering.
 - Strategy decisions belong in `lib/strategy.ts`.
 - Probability calculations and explanatory summaries belong in `lib/probability.ts`.
+- Learning-event normalization belongs in `lib/learning-events.ts`.
+- Adaptive drill and benchmark scenario generation belongs in `lib/adaptive-training.ts`.
+- Saved-decision identity, replay grouping, and unresolved-review logic belongs in `lib/decision-records.ts`.
 - If you update strategy tables, do so carefully and keep the tables easy to inspect.
 - Do not mix estimated probability messaging with actual gameplay state mutations.
 - Keep explanations concise, factual, and consistent with the actual recommendation returned.
@@ -132,6 +152,10 @@ This version has breaking changes. Before changing routing, layouts, rendering b
 - Maintain backward compatibility when adding fields:
   - merge saved data with defaults
   - tolerate missing fields from older saved payloads
+- Preserve the current storage keys unless a deliberate migration is required:
+  - `blackjack-trainer-stats`
+  - `blackjack-trainer-rules`
+  - `blackjack-trainer-decisions`
 - Keep stored payloads small and serializable.
 - Do not add backend, auth, remote databases, or syncing unless explicitly requested.
 
@@ -144,6 +168,7 @@ This version has breaking changes. Before changing routing, layouts, rendering b
 - Add a new abstraction only when it reduces real duplication or meaningfully clarifies ownership.
 - Avoid state duplication between components when one source of truth is enough.
 - Keep the page-level orchestration straightforward. `app/page.tsx` should coordinate the experience, not reimplement domain rules.
+- Keep cross-mode progress coherent. Decisions from play, coach, drill, exam, and review should continue to feed the same stats and history model.
 
 ## 12. What to avoid
 
@@ -163,9 +188,13 @@ This version has breaking changes. Before changing routing, layouts, rendering b
 - Manually sanity-check the affected flows in local dev when UI or state behavior changes.
 - For game-flow changes, verify the relevant basics still work:
   - page renders without runtime errors
+  - hydration still loads saved rules, stats, and decisions cleanly
+  - switching modes does not break top-level state
   - key controls respond correctly
   - gameplay state transitions still make sense
   - coaching/probability/stats inputs remain coherent
+  - drill, exam, and review decisions still record correctly
+  - unresolved mistakes appear and clear correctly in review
   - persistence still loads and saves without breaking SSR
 - If you could not run a verification step, say so explicitly in your final handoff.
 
